@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-predictor.py — Phase 10c
-Now correctly parses The Odds API v4 structure and includes debug for sport keys.
+predictor.py — Phase 10c (fixed)
+Now robustly finds the 'h2h' market across bookmakers and logs skips.
 """
 
 import os
@@ -51,13 +51,7 @@ API_KEY = os.getenv("ODDS_API_KEY")
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
-SPORTS = [
-    "americanfootball_nfl",
-    "americanfootball_ncaaf",
-    "basketball_nba",
-    "icehockey_nhl",
-    "baseball_mlb"
-]
+SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
 
 # ======= UTILS =======
 def american_to_prob(odds):
@@ -71,12 +65,22 @@ def american_to_prob(odds):
     except:
         return None
 
+# friendly sport mapping
+SPORT_MAP = {
+    "americanfootball_nfl": "NFL",
+    "americanfootball_ncaaf": "CFB",
+    "americanfootball_ncaa": "CFB",
+    "basketball_nba": "NBA",
+    "baseball_mlb": "MLB",
+    "icehockey_nhl": "NHL"
+}
+
 # ======= FETCH ODDS =======
 def fetch_odds(sport):
     url = ODDS_API_URL.format(sport=sport)
     params = {"apiKey": API_KEY, "regions": REGION, "markets": MARKETS, "oddsFormat": "american"}
     try:
-        r = requests.get(url, params=params, timeout=10)
+        r = requests.get(url, params=params, timeout=12)
         if r.status_code != 200:
             print(f"⚠️ API returned {r.status_code} for {sport}: {r.text[:200]}")
             return []
@@ -87,63 +91,112 @@ def fetch_odds(sport):
         print(f"⚠️ Error fetching {sport}: {e}")
         return []
 
+def find_h2h_market(bookmakers):
+    """
+    Search all bookmakers for a market with key == 'h2h'.
+    Return the market dict and the bookmaker key/title used, or (None, None).
+    """
+    for b in bookmakers or []:
+        for m in b.get("markets", []) or []:
+            if m.get("key") == "h2h":
+                return m, b.get("key") or b.get("title")
+    return None, None
+
 # ======= MAIN LOGIC =======
 rows = []
+skipped = 0
+events_processed = 0
+
 for sport in SPORTS:
     events = fetch_odds(sport)
     for ev in events:
         try:
-            home = ev.get("home_team")
-            away = ev.get("away_team")
+            # Use the API's home/away fields first (v4)
+            home = ev.get("home_team") or ev.get("home") or ev.get("homeTeam")
+            away = ev.get("away_team") or ev.get("away") or ev.get("awayTeam")
             if not home or not away:
+                # Try to pull teams from outcomes later, but skip if missing
+                print(f"⚠️ Skipping event (no home/away): id={ev.get('id')}")
+                skipped += 1
                 continue
 
-            bookmaker = ev["bookmakers"][0]
-            market = bookmaker["markets"][0]
-            outcomes = market["outcomes"]
+            # find an h2h market across available bookmakers
+            market, bookmaker_key = find_h2h_market(ev.get("bookmakers", []))
+            if not market:
+                # log available market keys for debugging
+                available = []
+                for b in ev.get("bookmakers", []):
+                    available.extend([m.get("key") for m in b.get("markets", []) if m.get("key")])
+                print(f"⚠️ Skipping event (no h2h market) id={ev.get('id')} available_markets={sorted(set(available))}")
+                skipped += 1
+                continue
 
+            outcomes = market.get("outcomes") or []
+            # moneyline h2h expects two outcomes
             if len(outcomes) != 2:
+                print(f"⚠️ Skipping event (h2h outcomes != 2) id={ev.get('id')} outcomes_len={len(outcomes)}")
+                skipped += 1
                 continue
 
-            team1, team2 = outcomes[0]["name"], outcomes[1]["name"]
-            odds1, odds2 = outcomes[0]["price"], outcomes[1]["price"]
+            # outcome ordering may not follow home/away; we'll use names directly
+            team1 = outcomes[0].get("name")
+            team2 = outcomes[1].get("name")
+            odds1 = outcomes[0].get("price")
+            odds2 = outcomes[1].get("price")
 
             p1 = american_to_prob(odds1)
             p2 = american_to_prob(odds2)
-            if not p1 or not p2:
+            if p1 is None or p2 is None:
+                print(f"⚠️ Skipping event (invalid odds) id={ev.get('id')} odds1={odds1} odds2={odds2}")
+                skipped += 1
                 continue
 
+            # normalize probabilities to sum to 1
             total = p1 + p2
+            if total <= 0:
+                print(f"⚠️ Skipping event (bad probs) id={ev.get('id')} p1={p1} p2={p2}")
+                skipped += 1
+                continue
             p1, p2 = p1 / total, p2 / total
+
             implied_edge = abs(p1 - p2) * 100 * ADJUST_FACTOR
             confidence = max(p1, p2) * 100
             pick = team1 if p1 > p2 else team2
 
+            sport_friendly = SPORT_MAP.get(sport, sport.split("_")[-1].upper())
+
             rows.append({
-                "Sport": sport,
+                "Sport": sport_friendly,
+                "SportRaw": sport,
                 "GameTime": ev.get("commence_time", ""),
+                "Team1": team1,
+                "Team2": team2,
                 "HomeTeam": home,
                 "AwayTeam": away,
+                "Bookmaker": bookmaker_key or "",
                 "MoneylinePick": pick,
                 "Confidence(%)": round(confidence, 1),
+                "Confidence": round(confidence, 1),
                 "Edge": f"{implied_edge:.2f}%",
-                "LockEmoji": "🔒" if implied_edge > LOCK_EDGE_THRESHOLD and confidence > LOCK_CONFIDENCE_THRESHOLD else "",
-                "UpsetEmoji": "💥" if implied_edge > UPSET_EDGE_THRESHOLD and confidence < 50 else "",
+                "EdgeValue": implied_edge,
+                "LockEmoji": "🔒" if (implied_edge > LOCK_EDGE_THRESHOLD and confidence > LOCK_CONFIDENCE_THRESHOLD) else "",
+                "UpsetEmoji": "💥" if (implied_edge > UPSET_EDGE_THRESHOLD and confidence < 50) else "",
                 "Reason": "Model vs Market probability differential"
             })
+            events_processed += 1
+
         except Exception as e:
-            print(f"⚠️ Skipped event: {e}")
+            print(f"⚠️ Skipped event due to exception: {e}")
+            skipped += 1
 
 # ======= OUTPUT =======
 if not rows:
     print("❌ No events processed successfully.")
 else:
     df = pd.DataFrame(rows)
-
-    # 🔍 Debug line: print actual sport keys written
-    print("✅ Unique sports in predictor output:", df["Sport"].unique().tolist())
-
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     out_file = OUT_DIR / f"Predictions_{date_str}_Explained.csv"
     df.to_csv(out_file, index=False)
-    print(f"✅ Saved predictions to {out_file} (rows={len(df)})")
+    unique_sports = sorted(df["Sport"].dropna().unique().tolist())
+    print("✅ Unique sports saved in CSV:", unique_sports)
+    print(f"✅ Saved predictions to {out_file} (rows={len(df)}, processed={events_processed}, skipped={skipped})")
