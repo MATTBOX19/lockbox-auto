@@ -40,9 +40,9 @@ OUT_DIR.mkdir(exist_ok=True)
 # MODEL TUNABLES (can be overridden via environment variables)
 MODEL_BIAS = float(os.getenv("MODEL_BIAS", "0.0"))          # absolute probability add-on (0.02 = +2%)
 ADJUST_FACTOR = float(os.getenv("ADJUST_FACTOR", "0.35"))   # amplifies market deviation from 0.5
-LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "6.0"))
-LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "75.0"))
-UPSET_EDGE_THRESHOLD = float(os.getenv("UPSET_EDGE_THRESHOLD", "4.0"))
+LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "1.0"))
+LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "60.0"))
+UPSET_EDGE_THRESHOLD = float(os.getenv("UPSET_EDGE_THRESHOLD", "1.5"))
 
 # ======= HELPERS =======
 def odds_price_to_prob(price):
