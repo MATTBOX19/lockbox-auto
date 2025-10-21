@@ -1,12 +1,9 @@
 # lockbox_web.py
 #
-# Flask app to show LockBox predictions with:
-# - sport dropdown (All / NFL / NCAA / NBA / NHL / MLB + any found in CSV)
-# - Top 5 toggle (by Edge)
-# - Lock emoji (🔒), Upset (🚨), Confidence(%) and Edge(%)
-# - Moneyline (ML), ATS and O/U if present in CSV (otherwise shows N/A)
-#
-# Usage: replace the file in your repo root and deploy. It looks for Output/Predictions_*.csv
+# Flask app to show LockBox predictions.
+# Looks for latest CSV under Output/Predictions_*.csv
+# Robust column lookup and percent/number parsing, shows Lock / Upset badges,
+# ML / ATS / O/U when present, Top-5 toggle, Sport dropdown.
 
 from flask import Flask, request, render_template_string
 import pandas as pd
@@ -14,10 +11,137 @@ import glob, os, datetime, re
 
 app = Flask(__name__)
 
-TEMPLATE = """ (same template as before - you can keep your existing template) """
-# For brevity in this message the HTML/CSS template is the same as the one you already used.
-# If you want the full template inline, copy the template string you prefer above exactly here.
-# The Python logic below produces the `rows` and template context.
+TEMPLATE = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>LockBox AI Picks</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{
+      --bg:#0b0f12;
+      --card:#0f1920;
+      --muted:#9aa6b2;
+      --accent:#29a3ff;
+      --gold:#d4a10a;
+      --pill:#091619;
+      --text:#dbe7ef;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial;}
+    .wrap{max-width:1200px;margin:28px auto;padding:20px;}
+    header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+    h1{margin:0;font-size:28px;color:var(--accent)}
+    .subtitle{color:var(--muted);font-size:14px;margin-top:6px}
+    .controls{display:flex;gap:10px;align-items:center}
+    select,button{background:var(--pill);border:1px solid rgba(255,255,255,0.03);color:var(--text);padding:10px;border-radius:8px;font-size:14px}
+    .toggle {display:inline-flex;align-items:center;gap:8px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-top:22px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.03);box-shadow: 0 4px 18px rgba(0,0,0,0.6)}
+    .card h3{margin:0;color:#6ed0ff;font-size:16px}
+    .meta{font-size:12px;color:var(--muted);margin-top:8px}
+    .pick{margin-top:14px;font-weight:700;color:var(--gold);font-size:16px}
+    .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+    .small{font-size:13px;color:var(--muted)}
+    .badge{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-size:12px}
+    .siren{color:#ff5c5c;margin-left:8px}
+    .lock{margin-left:8px}
+    .topbar-left{display:flex;flex-direction:column}
+    .controls .btn-primary{background:var(--accent);border:none;color:#022;box-shadow: inset 0 -1px 0 rgba(0,0,0,0.2)}
+    .info-row{margin-top:6px;color:var(--muted);font-size:13px}
+    .small-bits{display:flex;gap:8px;align-items:center}
+    .sport-pill{background:#062128;color:var(--accent);padding:6px 8px;border-radius:8px;font-weight:600;font-size:12px}
+    .no-data{color:var(--muted);padding:40px;text-align:center}
+    @media (max-width:620px){.cards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="topbar-left">
+        <h1>🔥 LockBox AI Picks <span style="font-size:14px">🔒</span></h1>
+        <div class="subtitle">Your edge, every game — Updated: {{ updated_at }}</div>
+      </div>
+
+      <div class="controls">
+        <div>
+          <label for="sport">Sport</label><br>
+          <select id="sport" onchange="applyFilter()">
+            <option value="All" {% if selected_sport=='All' %}selected{% endif %}>All</option>
+            {% for opt in sport_options %}
+              <option value="{{opt}}" {% if opt==selected_sport %}selected{% endif %}>{{opt}}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="top5">Top 5</label><br>
+          <select id="top5" onchange="applyFilter()">
+            <option value="0" {% if not top5 %}selected{% endif %}>All</option>
+            <option value="1" {% if top5 %}selected{% endif %}>Top 5</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    {% if not rows %}
+      <div class="no-data">No predictions found. Make sure there's a CSV at <code>Output/Predictions_*.csv</code></div>
+    {% else %}
+      <div style="margin-top:18px;font-size:13px;color:var(--muted)">{{rows|length}} picks shown</div>
+      <div class="cards">
+        {% for r in rows %}
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <h3>{{ r.title }}</h3>
+              <div class="meta">{{ r.gametime }}</div>
+            </div>
+            <div style="margin-left:12px;text-align:right">
+              <div class="sport-pill">{{ r.sport }}</div>
+              <div style="margin-top:8px;font-weight:700">{{ r.edge }}</div>
+            </div>
+          </div>
+
+          <div class="pick">{{ r.pick if r.pick and r.pick!='N/A' else 'N/A' }}
+            {% if r.lock %}<span class="lock">🔒</span>{% endif %}
+            {% if r.upset %}<span class="siren">🚨</span>{% endif %}
+          </div>
+
+          <div class="info-row">
+            <span class="small-bits"><strong>Confidence:</strong> {{ r.confidence }}</span>
+            <span class="small-bits" style="margin-left:14px"><strong>Edge:</strong> {{ r.edge }}</span>
+          </div>
+
+          <div class="row" style="margin-top:12px">
+            <div class="small">
+              <div>ML: <strong>{{ r.ml }}</strong></div>
+              <div>ATS: <strong>{{ r.ats }}</strong></div>
+              <div>O/U: <strong>{{ r.ou }}</strong></div>
+            </div>
+            <div style="text-align:right" class="small">
+              <div>{{ r.reason }}</div>
+            </div>
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+<script>
+function applyFilter(){
+  const sport = document.getElementById('sport').value;
+  const top5 = document.getElementById('top5').value;
+  const qs = new URLSearchParams(window.location.search);
+  qs.set('sport', sport);
+  qs.set('top5', top5);
+  window.location.search = qs.toString();
+}
+</script>
+</body>
+</html>
+"""
 
 def find_latest_prediction_csv():
     patterns = ["Output/Predictions_*.csv", "Output/*.csv", "Predictions_*.csv"]
@@ -30,10 +154,9 @@ def find_latest_prediction_csv():
     return candidates[0]
 
 def find_col(df, candidates):
-    # case-insensitive exact match, then contains match
     cols = {c.lower(): c for c in df.columns}
     for cand in candidates:
-        if cand is None: 
+        if cand is None:
             continue
         cl = cand.lower()
         if cl in cols:
@@ -53,19 +176,16 @@ def parse_percentish(v):
     s = str(v).strip()
     if s == "":
         return None
-    # remove % and commas
     s2 = s.replace("%","").replace(",","").strip()
-    # sometimes values like "3.0%" or "101.4" or "3"
     try:
         return float(s2)
-    except Exception:
+    except:
         return None
 
 def parse_moneyline_numeric(s):
     if s is None:
         return None
     s = str(s).strip()
-    # look for + or - followed by digits
     m = re.search(r'([+-]?\d+)', s)
     if m:
         try:
@@ -88,7 +208,6 @@ def normalize_sport_name(s):
         return "MLB"
     if "nhl" in s or "icehockey" in s or "hockey" in s:
         return "NHL"
-    # fallback: uppercase short token
     return s.upper()
 
 @app.route("/")
@@ -102,7 +221,7 @@ def index():
     except Exception as e:
         return f"Error reading CSV: {e}", 500
 
-    # candidate column names (many variants)
+    # column candidates
     sport_col = find_col(df, ["sport","Sport","category","league"])
     team1_col = find_col(df, ["team1","home","home_team","team_a","team1_name","home_team_name"])
     team2_col = find_col(df, ["team2","away","away_team","team_b","team2_name","away_team_name"])
@@ -128,29 +247,22 @@ def index():
             val = r[gametime_col]
             gametime = "" if pd.isna(val) else str(val)
 
-        # pick
         pick = "N/A"
         if pick_col and pick_col in df.columns:
             val = r[pick_col]
             if pd.notna(val) and str(val).strip() != "":
                 pick = str(val).strip()
 
-        # confidence
         conf_val = None
         if conf_col and conf_col in df.columns:
             conf_val = parse_percentish(r[conf_col])
-        if conf_val is None:
-            conf_display = "0.0%"
-        else:
-            conf_display = f"{round(conf_val,1)}%"
+        conf_display = "0.0%" if conf_val is None else f"{round(conf_val,1)}%"
 
-        # edge
         edge_val = None
         if edge_col and edge_col in df.columns:
             edge_val = parse_percentish(r[edge_col])
         edge_display = "N/A" if edge_val is None else f"{round(edge_val,1)}%"
 
-        # lock (explicit column or fallback threshold)
         lock = False
         if lock_col and lock_col in df.columns:
             v = r[lock_col]
@@ -159,13 +271,11 @@ def index():
             if edge_val is not None and edge_val >= 5.0:
                 lock = True
 
-        # upset
         upset = False
         if upset_col and upset_col in df.columns:
             v = r[upset_col]
             upset = bool(v) and str(v).strip().lower() not in ("", "0", "false", "none", "nan")
         else:
-            # try to detect upsets from moneyline positive numeric for pick
             ml_try = None
             if ml_col and ml_col in df.columns:
                 ml_try = r[ml_col]
@@ -173,13 +283,11 @@ def index():
                 if ml_num is not None and ml_num > 0:
                     upset = True
 
-        # ml / ats / ou formatting
         ml_display = "N/A"
         if ml_col and ml_col in df.columns:
             v = r[ml_col]
             ml_display = str(v) if pd.notna(v) else "N/A"
         else:
-            # try home/away two columns
             h = find_col(df, ["home_ml","home moneyline","home_ml_value"])
             a = find_col(df, ["away_ml","away moneyline","away_ml_value"])
             if h and a:
@@ -222,29 +330,25 @@ def index():
             "reason": reason
         })
 
-    # sport options (ordered preference + rest)
     seen = sorted({r["sport"] for r in rows if r["sport"]})
     preferred = ["NFL","NCAA","NBA","NHL","MLB"]
     sport_options = [p for p in preferred if p in seen] + [s for s in seen if s not in preferred]
 
-    # apply filters
     selected_sport = (request.args.get("sport") or "All")
     top5_flag = request.args.get("top5","0") in ("1","true","True")
 
     filtered = [r for r in rows if selected_sport in ("All","") or r["sport"].strip().lower() == selected_sport.strip().lower()]
 
-    # sort by numeric edge_val desc
     filtered_sorted = sorted(filtered, key=lambda x: x.get("edge_val",0.0), reverse=True)
 
     if top5_flag:
         filtered_sorted = filtered_sorted[:5]
 
-    # updated at
     try:
-        mt = os.path.getmtime(csv_path)
+        mt = os.path.getmtime(find_latest_prediction_csv())
         updated_at = datetime.datetime.utcfromtimestamp(mt).strftime("%Y-%m-%d %H:%M UTC")
     except:
-        updated_at = datetime.datetime.utcnow().isoformat()
+        updated_at = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
     return render_template_string(TEMPLATE,
                                  rows=filtered_sorted,
