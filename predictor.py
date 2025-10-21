@@ -1,14 +1,10 @@
+# predictor_auto.py  (use instead of the previous predictor or merge)
 #!/usr/bin/env python3
-"""
-predictor.py — Phase 10c (debug-friendly, writes Predictions_latest_Explained.csv)
-"""
-
-import os
-import json
+import os, json, uuid, math, time
+from pathlib import Path
+from datetime import datetime, timezone
 import requests
 import pandas as pd
-from datetime import datetime, timezone
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,67 +13,60 @@ ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
 OUT_DIR.mkdir(exist_ok=True)
 CONFIG_FILE = OUT_DIR / "predictor_config.json"
+HISTORY_FILE = OUT_DIR / "history.csv"
+LATEST_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 
-CONFIG_DEFAULTS = {
+# defaults (will be persisted)
+DEFAULTS = {
     "ADJUST_FACTOR": 0.35,
     "LOCK_EDGE_THRESHOLD": 0.5,
     "LOCK_CONFIDENCE_THRESHOLD": 51.0,
-    "UPSET_EDGE_THRESHOLD": 0.3
+    "UPSET_EDGE_THRESHOLD": 0.3,
+    "calibrate_lr": 0.05,   # learning rate for simple online adjust
+    "calibrate_window": 500 # how many recent settled rows to use
 }
 
 def load_config():
     if CONFIG_FILE.exists():
         try:
-            with open(CONFIG_FILE) as f:
+            with open(CONFIG_FILE, "r") as f:
                 cfg = json.load(f)
-                print(f"🧠 Loaded adaptive config: {cfg}")
-                return {**CONFIG_DEFAULTS, **cfg}
+            merged = {**DEFAULTS, **cfg}
+            print("🧠 Loaded config:", merged)
+            return merged
         except Exception as e:
-            print(f"⚠️ Failed to load config: {e}")
-    print("⚙️ Using default parameters.")
-    return CONFIG_DEFAULTS
+            print("⚠️ Failed load config:", e)
+    print("⚙️ Using defaults")
+    return DEFAULTS.copy()
 
-params = load_config()
-ADJUST_FACTOR = params["ADJUST_FACTOR"]
-LOCK_EDGE_THRESHOLD = params["LOCK_EDGE_THRESHOLD"]
-LOCK_CONFIDENCE_THRESHOLD = params["LOCK_CONFIDENCE_THRESHOLD"]
-UPSET_EDGE_THRESHOLD = params["UPSET_EDGE_THRESHOLD"]
+def save_config(cfg):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print("✅ Saved config")
 
+cfg = load_config()
+ADJUST_FACTOR = cfg["ADJUST_FACTOR"]
+LOCK_EDGE_THRESHOLD = cfg["LOCK_EDGE_THRESHOLD"]
+LOCK_CONFIDENCE_THRESHOLD = cfg["LOCK_CONFIDENCE_THRESHOLD"]
+UPSET_EDGE_THRESHOLD = cfg["UPSET_EDGE_THRESHOLD"]
+
+# API config / sports
 API_KEY = os.getenv("ODDS_API_KEY")
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
 SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
 
-def odds_to_prob(price):
-    """Convert API price (may be decimal odds or American) to implied probability (0..1).
-       Heuristic: negative values -> American; positive values:
-         - if <=1: invalid
-         - if between 1.01 and 10 -> treat as decimal (1/odds)
-         - otherwise treat as American (+150 etc) unless negative
-    """
-    if price is None:
+def american_to_prob(odds):
+    if odds is None:
         return None
     try:
-        o = float(price)
-    except Exception:
+        o = float(odds)
+        if o > 0:
+            return 100.0 / (o + 100.0)
+        return -o / (-o + 100.0)
+    except:
         return None
-
-    # American: negative numbers are american; very large absolute values probably american too
-    if o <= 0 or abs(o) >= 10:
-        # american
-        try:
-            if o > 0:
-                return 100.0 / (o + 100.0)
-            else:
-                return -o / (-o + 100.0)
-        except Exception:
-            return None
-    else:
-        # decimal odds (typical: 1.01 .. 10)
-        if o <= 1.01:
-            return None
-        return 1.0 / o
 
 def fetch_odds(sport):
     url = ODDS_API_URL.format(sport=sport)
@@ -85,159 +74,224 @@ def fetch_odds(sport):
     try:
         r = requests.get(url, params=params, timeout=12)
         if r.status_code != 200:
-            print(f"⚠️ API returned {r.status_code} for {sport}: {r.text[:200]}")
+            print(f"⚠️ API {r.status_code} for {sport}: {r.text[:200]}")
             return []
         data = r.json()
         print(f"📊 Retrieved {len(data)} events for {sport}")
         return data
     except Exception as e:
-        print(f"⚠️ Error fetching {sport}: {e}")
+        print("⚠️ fetch error", e)
         return []
 
-# mapper to friendly sport code
-SPORT_MAP = {
-    "americanfootball_nfl": "NFL",
-    "americanfootball_ncaaf": "CFB",
-    "basketball_nba": "NBA",
-    "baseball_mlb": "MLB",
-    "icehockey_nhl": "NHL"
-}
+def append_history(rows):
+    """Append rows (list of dicts) to history CSV; keep columns stable."""
+    keys = ["id","sport","commence_time","team1","team2","pick","pred_prob","edge","ml","ats","ou","reason","created_at","settled","result"]
+    if not rows:
+        return
+    df = pd.DataFrame(rows)
+    if not HISTORY_FILE.exists():
+        df.to_csv(HISTORY_FILE, index=False, columns=keys)
+        print(f"✅ Created history with {len(df)} rows")
+    else:
+        df.to_csv(HISTORY_FILE, index=False, header=False, mode="a", columns=keys)
+        print(f"✅ Appended {len(df)} rows to history")
 
+def try_fetch_results_and_mark_history():
+    """
+    Starter: look for results by event id using The Odds API's 'scores' or 'events' result endpoints.
+    You must implement result mapping — here we just provide the hook.
+    """
+    if not HISTORY_FILE.exists():
+        return
+    h = pd.read_csv(HISTORY_FILE)
+    unsettled = h[h["settled"] != True]
+    if unsettled.empty:
+        print("No unsettled rows to reconcile")
+        return
+
+    # Example: For each unsettled row, call an API (pseudo).
+    # This code is placeholder: replace with real result fetch logic or manual import.
+    updates = []
+    for idx, row in unsettled.iterrows():
+        # pseudo: if commence_time in past by >4 hours mark as NEEDS_MANUAL
+        try:
+            ct = row.get("commence_time")
+            if not ct:
+                continue
+            # simple rule: if time is >6 hours ago, mark as NEEDS_MANUAL
+            dt = datetime.fromisoformat(ct.replace("Z","+00:00"))
+            if (datetime.now(timezone.utc) - dt).total_seconds() > 6*3600:
+                updates.append((idx, True, "NEEDS_MANUAL"))
+        except Exception:
+            continue
+
+    if updates:
+        for idx, settled, result in updates:
+            h.loc[idx, "settled"] = True
+            h.loc[idx, "result"] = result
+        h.to_csv(HISTORY_FILE, index=False)
+        print("✅ Marked some history rows as settled (placeholder, please replace with real settlement process)")
+
+def auto_calibrate():
+    """
+    Very simple calibration: compute average predicted probability vs empirical win rate
+    on most recent N settled rows and nudge ADJUST_FACTOR to reduce bias.
+
+    ADJUST_FACTOR' = ADJUST_FACTOR * (1 + lr * (empirical_mean - predicted_mean) / predicted_mean)
+    (keeps adjustment small and stable)
+    """
+    if not HISTORY_FILE.exists():
+        print("No history for calibration")
+        return
+    h = pd.read_csv(HISTORY_FILE)
+    # only rows with numeric pred_prob and settled=TRUE and result in {WIN,LOSS}
+    settled = h[(h["settled"]==True) & (h["result"].notnull())]
+    if settled.empty:
+        print("No settled rows with results for calibration")
+        return
+
+    # But we need rows where result indicates whether pick actually won.
+    # Expect result column to be "WIN" or "LOSS" or other markers.
+    recent = settled.tail(int(cfg.get("calibrate_window", 500)))
+    # compute empirical win rate on picks
+    valid = recent[recent["pred_prob"].notnull()]
+    if valid.empty:
+        print("No valid rows for calibration")
+        return
+
+    # convert results to 1/0 if possible
+    def as_win(res):
+        if pd.isna(res): return None
+        s = str(res).upper()
+        if s in ("WIN","W","1","TRUE","HOME","AWAY"): # you will want to adjust mapping
+            return 1
+        if s in ("LOSS","L","0","FALSE"):
+            return 0
+        # unknown
+        return None
+
+    valid["winflag"] = valid["result"].apply(as_win)
+    valid = valid[valid["winflag"].notna()]
+    if valid.empty:
+        print("No rows with interpretable results for calibration")
+        return
+
+    predicted_mean = valid["pred_prob"].astype(float).mean()
+    empirical_mean = valid["winflag"].astype(float).mean()
+    if predicted_mean <= 0:
+        print("Bad predicted mean, abort calibrate")
+        return
+
+    error = empirical_mean - predicted_mean
+    lr = float(cfg.get("calibrate_lr", 0.05))
+    factor = cfg.get("ADJUST_FACTOR", ADJUST_FACTOR)
+    # nudge factor: if model underestimates actual wins, increase adjust factor a bit
+    new_factor = factor * (1 + lr * (error / predicted_mean))
+    # clamp to reasonable bounds
+    new_factor = max(0.01, min(new_factor, 2.0))
+    cfg["ADJUST_FACTOR"] = new_factor
+    save_config(cfg)
+    print(f"🔧 Calibrated ADJUST_FACTOR: old={factor:.4f} new={new_factor:.4f} (error={error:.4f})")
+
+# ----- main prediction loop (single run) -----
 rows = []
 processed = 0
 skipped = 0
+
 for sport in SPORTS:
     events = fetch_odds(sport)
     for ev in events:
-        processed += 1
-        ev_id = ev.get("id", "<no-id>")
         try:
-            # try to find available markets per bookmaker
-            bks = ev.get("bookmakers", []) or []
-            if not bks:
-                print(f"⚠️ Skipping event (no bookmakers) id={ev_id}")
+            # robustly find home/away in v4
+            home = ev.get("home_team") or ev.get("home")
+            away = ev.get("away_team") or ev.get("away")
+            # bookies may be empty
+            bms = ev.get("bookmakers", [])
+            if not bms:
                 skipped += 1
                 continue
-
-            # pick first bookmaker that has markets (prefer draftkings if present)
-            bookmaker = None
-            for b in bks:
-                if b.get("markets"):
-                    bookmaker = b
-                    if b.get("key") == "draftkings":
-                        break
-            if not bookmaker:
-                print(f"⚠️ Skipping event (no markets) id={ev_id}")
-                skipped += 1
-                continue
-
-            available_markets = [m.get("key") for m in bookmaker.get("markets", [])]
-            # prefer h2h market
-            h2h_market = None
-            spreads_market = None
-            totals_market = None
-            for m in bookmaker.get("markets", []):
+            # find h2h market if present
+            bm = bms[0]
+            market = None
+            for m in bm.get("markets", []):
                 if m.get("key") == "h2h":
-                    h2h_market = m
-                if m.get("key") == "spreads":
-                    spreads_market = m
-                if m.get("key") == "totals":
-                    totals_market = m
-
-            if not h2h_market:
-                print(f"⚠️ Skipping event (no h2h market) id={ev_id} available_markets={available_markets}")
+                    market = m
+                    break
+            if not market:
+                # skip events with no h2h
+                print(f"⚠️ Skipping event (no h2h market) id={ev.get('id')} available_markets={[m.get('key') for m in bm.get('markets',[])]}")
                 skipped += 1
                 continue
-
-            outcomes = h2h_market.get("outcomes", []) or []
+            outcomes = market.get("outcomes", [])
             if len(outcomes) != 2:
-                print(f"⚠️ Skipping event (unexpected h2h outcomes) id={ev_id} len_outcomes={len(outcomes)}")
                 skipped += 1
                 continue
-
-            team1_name = outcomes[0].get("name")
-            team2_name = outcomes[1].get("name")
-            price1 = outcomes[0].get("price")
-            price2 = outcomes[1].get("price")
-
-            p1 = odds_to_prob(price1)
-            p2 = odds_to_prob(price2)
+            team1, team2 = outcomes[0]["name"], outcomes[1]["name"]
+            odds1, odds2 = outcomes[0]["price"], outcomes[1]["price"]
+            p1 = american_to_prob(odds1)
+            p2 = american_to_prob(odds2)
             if p1 is None or p2 is None:
-                print(f"⚠️ Skipping event (bad prices) id={ev_id} prices=({price1},{price2})")
                 skipped += 1
                 continue
-
-            # normalize probs
             total = p1 + p2
-            if total <= 0:
-                print(f"⚠️ Skipping event (invalid total probs) id={ev_id} total={total}")
-                skipped += 1
-                continue
             p1n, p2n = p1 / total, p2 / total
+            implied_edge = abs(p1n - p2n) * 100 * cfg.get("ADJUST_FACTOR", ADJUST_FACTOR)
+            confidence = max(p1n, p2n) * 100
+            pick = team1 if p1n > p2n else team2
 
-            implied_edge = abs(p1n - p2n) * 100.0 * ADJUST_FACTOR  # numeric small float (matches previous flow)
-            confidence = max(p1n, p2n) * 100.0
-            pick = team1_name if p1n > p2n else team2_name
-
-            # build ML/ATS/OU strings if possible
-            ml_str = f"{team1_name}:{price1} | {team2_name}:{price2}"
-            ats_str = ""
-            ou_str = ""
-            if spreads_market:
-                try:
-                    s_out = spreads_market.get("outcomes", [])
-                    # join spread lines
-                    ats_parts = []
-                    for o in s_out:
-                        n = o.get("name"); sp = o.get("point"); ats_parts.append(f"{n}:{sp:+}")
-                    ats_str = " | ".join(ats_parts)
-                except Exception:
-                    pass
-            if totals_market:
-                try:
-                    t_out = totals_market.get("outcomes", [])
-                    # typical totals markets include labels like Over/Under
-                    tot_parts = []
-                    for o in t_out:
-                        if "name" in o and "point" in o:
-                            tot_parts.append(f"{o.get('name')}: {o.get('point')}")
-                    ou_str = " / ".join(tot_parts) if tot_parts else ""
-                except Exception:
-                    pass
-
-            # friendly sport label
-            sport_label = SPORT_MAP.get(sport, sport.split("_")[-1].upper())
-
+            ml_pretty = f"{team1}:{odds1} | {team2}:{odds2}"
             rows.append({
-                "Sport": sport_label,
-                "GameTime": ev.get("commence_time", ""),
-                "Team1": team1_name,
-                "Team2": team2_name,
+                "Sport": sport.split("_")[-1].upper(),
+                "GameTime": ev.get("commence_time",""),
+                "Team1": team1,
+                "Team2": team2,
                 "MoneylinePick": pick,
-                "Confidence": round(confidence, 2),
-                "Edge": round(implied_edge, 4),
-                "ML": ml_str,
-                "ATS": ats_str,
-                "OU": ou_str,
+                "Confidence(%)": round(confidence, 2),
+                "Edge": f"{implied_edge:.4f}%",
+                "ML": ml_pretty,
+                "ATS": "", "OU": "",
                 "Reason": "Model vs Market probability differential",
-                "LockEmoji": "🔒" if (implied_edge >= LOCK_EDGE_THRESHOLD and confidence >= LOCK_CONFIDENCE_THRESHOLD) else "",
-                "UpsetEmoji": "💥" if (implied_edge >= UPSET_EDGE_THRESHOLD and confidence < 50.0) else ""
+                "LockEmoji": "🔒" if implied_edge > cfg["LOCK_EDGE_THRESHOLD"] and confidence > cfg["LOCK_CONFIDENCE_THRESHOLD"] else "",
+                "UpsetEmoji": "💥" if implied_edge > cfg["UPSET_EDGE_THRESHOLD"] and confidence < 50 else ""
             })
 
+            # append to history row
+            event_id = ev.get("id") or str(uuid.uuid4())
+            hist_row = {
+                "id": event_id,
+                "sport": sport,
+                "commence_time": ev.get("commence_time",""),
+                "team1": team1,
+                "team2": team2,
+                "pick": pick,
+                "pred_prob": max(p1n,p2n),
+                "edge": implied_edge,
+                "ml": ml_pretty,
+                "ats": "",
+                "ou": "",
+                "reason": "Model vs Market probability differential",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "settled": False,
+                "result": ""
+            }
+            append_history([hist_row])
+            processed += 1
+
         except Exception as e:
-            print(f"⚠️ Skipped event (exception) id={ev_id}: {e}")
+            print("⚠️ Skipped event:", e)
             skipped += 1
 
-# Output
+# write latest CSV as before
 if not rows:
-    print("❌ No events processed successfully.")
+    print("❌ No events processed")
 else:
     df = pd.DataFrame(rows)
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    out_file = OUT_DIR / f"Predictions_{date_str}_Explained.csv"
-    latest_file = OUT_DIR / "Predictions_latest_Explained.csv"
-    df.to_csv(out_file, index=False)
-    df.to_csv(latest_file, index=False)
-    unique_sports = sorted(df["Sport"].dropna().unique().tolist())
-    print(f"✅ Unique sports saved in CSV: {unique_sports}")
-    print(f"✅ Saved predictions to {out_file} and {latest_file} (rows={len(df)}, processed={processed}, skipped={skipped})")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    df.to_csv(LATEST_FILE, index=False)
+    print(f"✅ Saved predictions to {LATEST_FILE} (rows={len(df)})")
+
+# optional: try to auto fetch results and calibrate
+try_fetch_results_and_mark_history()
+auto_calibrate()
+
+print(f"Done processed={processed} skipped={skipped}")
