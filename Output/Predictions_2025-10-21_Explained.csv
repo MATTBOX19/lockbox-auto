@@ -1,67 +1,70 @@
-Sport,GameTime,Team1,Team2,MoneylinePick,Confidence(%),Edge,LockEmoji,UpsetEmoji,Reason
-americanfootball_nfl,2025-10-24T00:15:00Z,Minnesota Vikings,Los Angeles Chargers,Los Angeles Chargers,101.4,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,Miami Dolphins,Atlanta Falcons,Atlanta Falcons,101.7,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,Chicago Bears,Baltimore Ravens,Baltimore Ravens,101.7,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,Buffalo Bills,Carolina Panthers,Carolina Panthers,99.1,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,New York Jets,Cincinnati Bengals,Cincinnati Bengals,101.7,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,Cleveland Browns,New England Patriots,New England Patriots,101.7,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,San Francisco 49ers,Houston Texans,Houston Texans,101.0,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T17:00:00Z,New York Giants,Philadelphia Eagles,Philadelphia Eagles,101.7,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T20:05:00Z,Tampa Bay Buccaneers,New Orleans Saints,New Orleans Saints,100.0,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T20:25:00Z,Dallas Cowboys,Denver Broncos,Denver Broncos,101.4,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-26T20:25:00Z,Tennessee Titans,Indianapolis Colts,Indianapolis Colts,101.9,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-27T00:20:00Z,Green Bay Packers,Pittsburgh Steelers,Pittsburgh Steelers,100.6,3.0%,,,Model vs Market probability differential
-americanfootball_nfl,2025-10-28T00:15:00Z,Washington Commanders,Kansas City Chiefs,Kansas City Chiefs,101.9,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-21T23:35:00Z,Houston Rockets,Oklahoma City Thunder,Oklahoma City Thunder,101.7,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-22T02:00:00Z,Golden State Warriors,Los Angeles Lakers,Los Angeles Lakers,100.8,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-22T23:10:00Z,Brooklyn Nets,Charlotte Hornets,Charlotte Hornets,101.5,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-22T23:10:00Z,Cleveland Cavaliers,New York Knicks,New York Knicks,101.3,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-22T23:10:00Z,Miami Heat,Orlando Magic,Orlando Magic,101.7,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-22T23:40:00Z,Toronto Raptors,Atlanta Hawks,Atlanta Hawks,101.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-22T23:40:00Z,Philadelphia 76ers,Boston Celtics,Boston Celtics,101.3,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T00:10:00Z,Detroit Pistons,Chicago Bulls,Chicago Bulls,100.7,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T00:10:00Z,New Orleans Pelicans,Memphis Grizzlies,Memphis Grizzlies,101.5,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T00:10:00Z,Washington Wizards,Milwaukee Bucks,Milwaukee Bucks,101.8,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T01:10:00Z,Los Angeles Clippers,Utah Jazz,Utah Jazz,99.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T01:40:00Z,San Antonio Spurs,Dallas Mavericks,Dallas Mavericks,101.4,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T02:10:00Z,Minnesota Timberwolves,Portland Trail Blazers,Portland Trail Blazers,100.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T02:10:00Z,Sacramento Kings,Phoenix Suns,Phoenix Suns,101.5,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-23T23:40:00Z,Oklahoma City Thunder,Indiana Pacers,Indiana Pacers,99.4,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-24T02:10:00Z,Denver Nuggets,Golden State Warriors,Golden State Warriors,101.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-24T23:30:00Z,Boston Celtics,New York Knicks,New York Knicks,101.7,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-27T23:00:00Z,Cleveland Cavaliers,Detroit Pistons,Detroit Pistons,101.0,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-28T01:30:00Z,Denver Nuggets,Minnesota Timberwolves,Minnesota Timberwolves,101.2,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-10-31T23:00:00Z,Boston Celtics,Philadelphia 76ers,Philadelphia 76ers,101.5,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-08T00:30:00Z,Houston Rockets,San Antonio Spurs,San Antonio Spurs,101.0,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-08T03:00:00Z,Golden State Warriors,Denver Nuggets,Denver Nuggets,101.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-15T00:00:00Z,Miami Heat,New York Knicks,New York Knicks,101.8,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-15T02:30:00Z,Golden State Warriors,San Antonio Spurs,San Antonio Spurs,101.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-22T00:00:00Z,Indiana Pacers,Cleveland Cavaliers,Cleveland Cavaliers,101.8,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-22T02:30:00Z,Denver Nuggets,Houston Rockets,Houston Rockets,101.4,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-26T01:00:00Z,Orlando Magic,Philadelphia 76ers,Philadelphia 76ers,101.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-26T04:00:00Z,Los Angeles Clippers,Los Angeles Lakers,Los Angeles Lakers,101.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-26T22:00:00Z,Detroit Pistons,Boston Celtics,Boston Celtics,101.2,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-27T00:30:00Z,Minnesota Timberwolves,Oklahoma City Thunder,Oklahoma City Thunder,101.8,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-27T03:00:00Z,Houston Rockets,Golden State Warriors,Golden State Warriors,101.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-29T00:30:00Z,Milwaukee Bucks,New York Knicks,New York Knicks,101.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-11-29T03:00:00Z,Dallas Mavericks,Los Angeles Lakers,Los Angeles Lakers,101.7,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-12-25T17:00:00Z,Cleveland Cavaliers,New York Knicks,New York Knicks,101.3,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-12-25T19:30:00Z,San Antonio Spurs,Oklahoma City Thunder,Oklahoma City Thunder,101.8,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-12-25T22:00:00Z,Dallas Mavericks,Golden State Warriors,Golden State Warriors,101.5,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-12-26T01:00:00Z,Houston Rockets,Los Angeles Lakers,Los Angeles Lakers,101.3,3.0%,,,Model vs Market probability differential
-basketball_nba,2025-12-26T03:30:00Z,Minnesota Timberwolves,Denver Nuggets,Denver Nuggets,101.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2026-01-19T18:00:00Z,Milwaukee Bucks,Atlanta Hawks,Atlanta Hawks,101.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2026-01-19T19:30:00Z,Oklahoma City Thunder,Cleveland Cavaliers,Cleveland Cavaliers,101.1,3.0%,,,Model vs Market probability differential
-basketball_nba,2026-01-19T22:00:00Z,Dallas Mavericks,New York Knicks,New York Knicks,101.6,3.0%,,,Model vs Market probability differential
-basketball_nba,2026-01-20T01:00:00Z,Boston Celtics,Detroit Pistons,Detroit Pistons,101.5,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-21T23:10:00Z,Edmonton Oilers,Ottawa Senators,Ottawa Senators,100.9,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-21T23:10:00Z,New Jersey Devils,Toronto Maple Leafs,Toronto Maple Leafs,101.2,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-21T23:10:00Z,San Jose Sharks,New York Islanders,New York Islanders,101.6,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-21T23:10:00Z,Vancouver Canucks,Pittsburgh Penguins,Pittsburgh Penguins,101.1,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-21T23:10:00Z,Seattle Kraken,Washington Capitals,Washington Capitals,101.6,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-21T23:40:00Z,Florida Panthers,Boston Bruins,Boston Bruins,100.8,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-22T00:10:00Z,Anaheim Ducks,Nashville Predators,Nashville Predators,101.2,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-22T00:10:00Z,Columbus Blue Jackets,Dallas Stars,Dallas Stars,101.5,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-22T00:10:00Z,Los Angeles Kings,St Louis Blues,St Louis Blues,101.3,3.0%,,,Model vs Market probability differential
-icehockey_nhl,2025-10-22T02:10:00Z,Colorado Avalanche,Utah Mammoth,Utah Mammoth,100.8,3.0%,,,Model vs Market probability differential
-baseball_mlb,2025-10-25T00:00:00Z,Los Angeles Dodgers,Toronto Blue Jays,Toronto Blue Jays,100.8,3.0%,,,Model vs Market probability differential
+Sport,GameTime,Team1,Team2,MoneylinePick,Confidence,Edge,ML,ATS,OU,Reason,LockEmoji,UpsetEmoji
+NFL,2025-10-24T00:15:00Z,Los Angeles Chargers,Minnesota Vikings,Los Angeles Chargers,50.2,0.03,Los Angeles Chargers:1.6 | Minnesota Vikings:2.4,Los Angeles Chargers:-3.0 | Minnesota Vikings:+3.0,Over:44.5 / Under:44.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,Atlanta Falcons,Miami Dolphins,Atlanta Falcons,50.7,0.09,Atlanta Falcons:1.28 | Miami Dolphins:3.85,Atlanta Falcons:-7.0 | Miami Dolphins:+7.0,Over:44.5 / Under:44.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,Baltimore Ravens,Chicago Bears,Baltimore Ravens,50.6,0.08,Baltimore Ravens:1.31 | Chicago Bears:3.6,Baltimore Ravens:-6.5 | Chicago Bears:+6.5,Over:49.5 / Under:49.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,Carolina Panthers,Buffalo Bills,Buffalo Bills,50.7,0.09,Carolina Panthers:3.85 | Buffalo Bills:1.28,Buffalo Bills:-7.5 | Carolina Panthers:+7.5,Over:45.5 / Under:45.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,Cincinnati Bengals,New York Jets,Cincinnati Bengals,50.7,0.09,Cincinnati Bengals:1.29 | New York Jets:3.7,Cincinnati Bengals:-7.0 | New York Jets:+7.0,Over:44.5 / Under:44.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,New England Patriots,Cleveland Browns,New England Patriots,50.7,0.09,New England Patriots:1.29 | Cleveland Browns:3.75,Cleveland Browns:+7.0 | New England Patriots:-7.0,Over:40.5 / Under:40.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,Houston Texans,San Francisco 49ers,Houston Texans,50.1,0.01,Houston Texans:1.82 | San Francisco 49ers:2.02,Houston Texans:-1.5 | San Francisco 49ers:+1.5,Over:40.5 / Under:40.5,Model vs Market probability differential,,
+NFL,2025-10-26T17:00:00Z,Philadelphia Eagles,New York Giants,Philadelphia Eagles,50.7,0.09,Philadelphia Eagles:1.28 | New York Giants:3.8,New York Giants:+7.0 | Philadelphia Eagles:-7.0,Over:43.5 / Under:43.5,Model vs Market probability differential,,
+NFL,2025-10-26T20:05:00Z,New Orleans Saints,Tampa Bay Buccaneers,Tampa Bay Buccaneers,50.4,0.05,New Orleans Saints:2.9 | Tampa Bay Buccaneers:1.43,New Orleans Saints:+4.5 | Tampa Bay Buccaneers:-4.5,Over:46.5 / Under:46.5,Model vs Market probability differential,,
+NFL,2025-10-26T20:25:00Z,Denver Broncos,Dallas Cowboys,Denver Broncos,50.3,0.03,Denver Broncos:1.56 | Dallas Cowboys:2.5,Dallas Cowboys:+3.5 | Denver Broncos:-3.5,Over:50.5 / Under:50.5,Model vs Market probability differential,,
+NFL,2025-10-26T20:25:00Z,Indianapolis Colts,Tennessee Titans,Indianapolis Colts,51.8,0.24,Indianapolis Colts:1.1 | Tennessee Titans:7.75,Indianapolis Colts:-14.0 | Tennessee Titans:+14.0,Over:47.5 / Under:47.5,Model vs Market probability differential,,
+NFL,2025-10-27T00:20:00Z,Pittsburgh Steelers,Green Bay Packers,Green Bay Packers,50.3,0.04,Pittsburgh Steelers:2.54 | Green Bay Packers:1.54,Green Bay Packers:-3.0 | Pittsburgh Steelers:+3.0,Over:44.5 / Under:44.5,Model vs Market probability differential,,
+NFL,2025-10-28T00:15:00Z,Kansas City Chiefs,Washington Commanders,Kansas City Chiefs,51.2,0.16,Kansas City Chiefs:1.16 | Washington Commanders:5.55,Kansas City Chiefs:-10.0 | Washington Commanders:+10.0,Over:47.5 / Under:47.5,Model vs Market probability differential,,
+NBA,2025-10-21T23:35:00Z,Oklahoma City Thunder,Houston Rockets,Oklahoma City Thunder,50.5,0.07,Oklahoma City Thunder:1.37 | Houston Rockets:3.2,Houston Rockets:+6.5 | Oklahoma City Thunder:-6.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-10-22T02:00:00Z,Los Angeles Lakers,Golden State Warriors,Golden State Warriors,50.2,0.02,Los Angeles Lakers:2.3 | Golden State Warriors:1.65,Golden State Warriors:-2.5 | Los Angeles Lakers:+2.5,Over:226.5 / Under:226.5,Model vs Market probability differential,,
+NBA,2025-10-22T23:10:00Z,Charlotte Hornets,Brooklyn Nets,Charlotte Hornets,50.3,0.04,Charlotte Hornets:1.52 | Brooklyn Nets:2.6,Brooklyn Nets:+5.5 | Charlotte Hornets:-5.5,Over:226.5 / Under:226.5,Model vs Market probability differential,,
+NBA,2025-10-22T23:10:00Z,New York Knicks,Cleveland Cavaliers,New York Knicks,50.1,0.02,New York Knicks:1.7 | Cleveland Cavaliers:2.2,Cleveland Cavaliers:+2.5 | New York Knicks:-2.5,Over:228.5 / Under:228.5,Model vs Market probability differential,,
+NBA,2025-10-22T23:10:00Z,Orlando Magic,Miami Heat,Orlando Magic,50.7,0.09,Orlando Magic:1.28 | Miami Heat:3.85,Miami Heat:+8.5 | Orlando Magic:-8.5,Over:215.5 / Under:215.5,Model vs Market probability differential,,
+NBA,2025-10-22T23:40:00Z,Atlanta Hawks,Toronto Raptors,Atlanta Hawks,50.4,0.05,Atlanta Hawks:1.46 | Toronto Raptors:2.8,Atlanta Hawks:-5.5 | Toronto Raptors:+5.5,Over:235.5 / Under:235.5,Model vs Market probability differential,,
+NBA,2025-10-22T23:40:00Z,Boston Celtics,Philadelphia 76ers,Boston Celtics,50.1,0.02,Boston Celtics:1.7 | Philadelphia 76ers:2.2,Boston Celtics:-2.5 | Philadelphia 76ers:+2.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-10-23T00:10:00Z,Chicago Bulls,Detroit Pistons,Detroit Pistons,50.2,0.03,Chicago Bulls:2.4 | Detroit Pistons:1.6,Chicago Bulls:+3.5 | Detroit Pistons:-3.5,Over:232.5 / Under:232.5,Model vs Market probability differential,,
+NBA,2025-10-23T00:10:00Z,Memphis Grizzlies,New Orleans Pelicans,Memphis Grizzlies,50.3,0.04,Memphis Grizzlies:1.52 | New Orleans Pelicans:2.6,Memphis Grizzlies:-4.5 | New Orleans Pelicans:+4.5,Over:236.5 / Under:236.5,Model vs Market probability differential,,
+NBA,2025-10-23T00:10:00Z,Milwaukee Bucks,Washington Wizards,Milwaukee Bucks,50.8,0.11,Milwaukee Bucks:1.24 | Washington Wizards:4.2,Milwaukee Bucks:-9.5 | Washington Wizards:+9.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-10-23T01:10:00Z,Utah Jazz,Los Angeles Clippers,Los Angeles Clippers,50.8,0.1,Utah Jazz:4.1 | Los Angeles Clippers:1.25,Los Angeles Clippers:-9.5 | Utah Jazz:+9.5,Over:226.5 / Under:226.5,Model vs Market probability differential,,
+NBA,2025-10-23T01:40:00Z,Dallas Mavericks,San Antonio Spurs,Dallas Mavericks,50.2,0.02,Dallas Mavericks:1.68 | San Antonio Spurs:2.24,Dallas Mavericks:-2.5 | San Antonio Spurs:+2.5,Over:226.5 / Under:226.5,Model vs Market probability differential,,
+NBA,2025-10-23T02:10:00Z,Portland Trail Blazers,Minnesota Timberwolves,Minnesota Timberwolves,50.3,0.04,Portland Trail Blazers:2.54 | Minnesota Timberwolves:1.54,Minnesota Timberwolves:-4.5 | Portland Trail Blazers:+4.5,Over:221.5 / Under:221.5,Model vs Market probability differential,,
+NBA,2025-10-23T02:10:00Z,Phoenix Suns,Sacramento Kings,Phoenix Suns,50.3,0.03,Phoenix Suns:1.56 | Sacramento Kings:2.5,Phoenix Suns:-4.5 | Sacramento Kings:+4.5,Over:228.5 / Under:228.5,Model vs Market probability differential,,
+NBA,2025-10-23T23:40:00Z,Indiana Pacers,Oklahoma City Thunder,Oklahoma City Thunder,50.7,0.09,Indiana Pacers:3.7 | Oklahoma City Thunder:1.29,Indiana Pacers:+7.5 | Oklahoma City Thunder:-7.5,Over:228.5 / Under:228.5,Model vs Market probability differential,,
+NBA,2025-10-24T02:10:00Z,Golden State Warriors,Denver Nuggets,Golden State Warriors,50.0,0.0,Golden State Warriors:1.89 | Denver Nuggets:1.93,Denver Nuggets:+1.5 | Golden State Warriors:-1.5,Over:233.5 / Under:233.5,Model vs Market probability differential,,
+NBA,2025-10-24T23:30:00Z,New York Knicks,Boston Celtics,New York Knicks,50.5,0.07,New York Knicks:1.36 | Boston Celtics:3.25,Boston Celtics:+6.5 | New York Knicks:-6.5,Over:226.5 / Under:226.5,Model vs Market probability differential,,
+NBA,2025-10-27T23:00:00Z,Detroit Pistons,Cleveland Cavaliers,Cleveland Cavaliers,50.1,0.01,Detroit Pistons:2.02 | Cleveland Cavaliers:1.82,Cleveland Cavaliers:-1.5 | Detroit Pistons:+1.5,Over:228.5 / Under:228.5,Model vs Market probability differential,,
+NBA,2025-10-28T01:30:00Z,Minnesota Timberwolves,Denver Nuggets,Minnesota Timberwolves,50.1,0.01,Minnesota Timberwolves:1.82 | Denver Nuggets:2.02,Denver Nuggets:+1.5 | Minnesota Timberwolves:-1.5,Over:229.5 / Under:229.5,Model vs Market probability differential,,
+NBA,2025-10-31T23:00:00Z,Philadelphia 76ers,Boston Celtics,Philadelphia 76ers,50.3,0.04,Philadelphia 76ers:1.54 | Boston Celtics:2.54,Boston Celtics:+4.5 | Philadelphia 76ers:-4.5,Over:224.5 / Under:224.5,Model vs Market probability differential,,
+NBA,2025-11-08T00:30:00Z,San Antonio Spurs,Houston Rockets,Houston Rockets,50.1,0.01,San Antonio Spurs:2.05 | Houston Rockets:1.8,Houston Rockets:-1.5 | San Antonio Spurs:+1.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-11-08T03:00:00Z,Denver Nuggets,Golden State Warriors,Denver Nuggets,50.4,0.06,Denver Nuggets:1.42 | Golden State Warriors:2.95,Denver Nuggets:-5.5 | Golden State Warriors:+5.5,Over:232.5 / Under:232.5,Model vs Market probability differential,,
+NBA,2025-11-15T00:00:00Z,New York Knicks,Miami Heat,New York Knicks,51.0,0.13,New York Knicks:1.2 | Miami Heat:4.8,Miami Heat:+9.5 | New York Knicks:-9.5,Over:218.5 / Under:218.5,Model vs Market probability differential,,
+NBA,2025-11-15T02:30:00Z,San Antonio Spurs,Golden State Warriors,San Antonio Spurs,50.0,0.0,San Antonio Spurs:1.91 | Golden State Warriors:1.91,Golden State Warriors:+1.5 | San Antonio Spurs:-1.5,Over:229.5 / Under:229.5,Model vs Market probability differential,,
+NBA,2025-11-22T00:00:00Z,Cleveland Cavaliers,Indiana Pacers,Cleveland Cavaliers,51.1,0.14,Cleveland Cavaliers:1.18 | Indiana Pacers:5.1,Cleveland Cavaliers:-9.5 | Indiana Pacers:+9.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-11-22T02:30:00Z,Houston Rockets,Denver Nuggets,Houston Rockets,50.2,0.02,Houston Rockets:1.65 | Denver Nuggets:2.3,Denver Nuggets:+2.5 | Houston Rockets:-2.5,Over:230.5 / Under:230.5,Model vs Market probability differential,,
+NBA,2025-11-26T01:00:00Z,Philadelphia 76ers,Orlando Magic,Orlando Magic,50.0,0.0,Philadelphia 76ers:1.98 | Orlando Magic:1.85,Orlando Magic:-1.5 | Philadelphia 76ers:+1.5,Over:217.5 / Under:217.5,Model vs Market probability differential,,
+NBA,2025-11-26T04:00:00Z,Los Angeles Lakers,Los Angeles Clippers,Los Angeles Lakers,50.0,0.0,Los Angeles Lakers:1.91 | Los Angeles Clippers:1.91,Los Angeles Clippers:+1.5 | Los Angeles Lakers:-1.5,Over:223.5 / Under:223.5,Model vs Market probability differential,,
+NBA,2025-11-26T22:00:00Z,Boston Celtics,Detroit Pistons,Boston Celtics,50.0,0.0,Boston Celtics:1.87 | Detroit Pistons:1.95,Boston Celtics:-1.5 | Detroit Pistons:+1.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-11-27T00:30:00Z,Oklahoma City Thunder,Minnesota Timberwolves,Oklahoma City Thunder,50.8,0.1,Oklahoma City Thunder:1.26 | Minnesota Timberwolves:4.0,Minnesota Timberwolves:+8.5 | Oklahoma City Thunder:-8.5,Over:225.5 / Under:225.5,Model vs Market probability differential,,
+NBA,2025-11-27T03:00:00Z,Golden State Warriors,Houston Rockets,Houston Rockets,50.0,0.0,Golden State Warriors:1.98 | Houston Rockets:1.85,Golden State Warriors:+1.5 | Houston Rockets:-1.5,Over:224.5 / Under:224.5,Model vs Market probability differential,,
+NBA,2025-11-29T00:30:00Z,New York Knicks,Milwaukee Bucks,New York Knicks,50.5,0.06,New York Knicks:1.38 | Milwaukee Bucks:3.15,Milwaukee Bucks:+6.5 | New York Knicks:-6.5,Over:225.5 / Under:225.5,Model vs Market probability differential,,
+NBA,2025-11-29T03:00:00Z,Los Angeles Lakers,Dallas Mavericks,Los Angeles Lakers,50.5,0.07,Los Angeles Lakers:1.36 | Dallas Mavericks:3.25,Dallas Mavericks:+6.5 | Los Angeles Lakers:-6.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2025-12-25T17:00:00Z,New York Knicks,Cleveland Cavaliers,New York Knicks,50.1,0.02,New York Knicks:1.7 | Cleveland Cavaliers:2.2,Cleveland Cavaliers:+2.5 | New York Knicks:-2.5,Over:228.5 / Under:228.5,Model vs Market probability differential,,
+NBA,2025-12-25T19:30:00Z,Oklahoma City Thunder,San Antonio Spurs,Oklahoma City Thunder,50.8,0.11,Oklahoma City Thunder:1.24 | San Antonio Spurs:4.2,Oklahoma City Thunder:-9.5 | San Antonio Spurs:+9.5,Over:229.5 / Under:229.5,Model vs Market probability differential,,
+NBA,2025-12-25T22:00:00Z,Golden State Warriors,Dallas Mavericks,Golden State Warriors,50.3,0.04,Golden State Warriors:1.49 | Dallas Mavericks:2.7,Dallas Mavericks:+4.5 | Golden State Warriors:-4.5,Over:226.5 / Under:226.5,Model vs Market probability differential,,
+NBA,2025-12-26T01:00:00Z,Los Angeles Lakers,Houston Rockets,Los Angeles Lakers,50.2,0.02,Los Angeles Lakers:1.68 | Houston Rockets:2.24,Houston Rockets:+2.5 | Los Angeles Lakers:-2.5,Over:224.5 / Under:224.5,Model vs Market probability differential,,
+NBA,2025-12-26T03:30:00Z,Denver Nuggets,Minnesota Timberwolves,Denver Nuggets,50.4,0.05,Denver Nuggets:1.44 | Minnesota Timberwolves:2.85,Denver Nuggets:-5.5 | Minnesota Timberwolves:+5.5,Over:228.5 / Under:228.5,Model vs Market probability differential,,
+NBA,2026-01-19T18:00:00Z,Atlanta Hawks,Milwaukee Bucks,Atlanta Hawks,50.4,0.05,Atlanta Hawks:1.46 | Milwaukee Bucks:2.8,Atlanta Hawks:-4.5 | Milwaukee Bucks:+4.5,Over:233.5 / Under:233.5,Model vs Market probability differential,,
+NBA,2026-01-19T19:30:00Z,Cleveland Cavaliers,Oklahoma City Thunder,Cleveland Cavaliers,50.0,0.0,Cleveland Cavaliers:1.89 | Oklahoma City Thunder:1.93,Cleveland Cavaliers:-1.5 | Oklahoma City Thunder:+1.5,Over:229.5 / Under:229.5,Model vs Market probability differential,,
+NBA,2026-01-19T22:00:00Z,New York Knicks,Dallas Mavericks,New York Knicks,50.5,0.06,New York Knicks:1.39 | Dallas Mavericks:3.1,Dallas Mavericks:+5.5 | New York Knicks:-5.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NBA,2026-01-20T01:00:00Z,Detroit Pistons,Boston Celtics,Detroit Pistons,50.3,0.04,Detroit Pistons:1.51 | Boston Celtics:2.64,Boston Celtics:+4.5 | Detroit Pistons:-4.5,Over:227.5 / Under:227.5,Model vs Market probability differential,,
+NHL,2025-10-21T23:10:00Z,Ottawa Senators,Edmonton Oilers,Edmonton Oilers,50.1,0.01,Ottawa Senators:2.05 | Edmonton Oilers:1.8,Edmonton Oilers:-1.5 | Ottawa Senators:+1.5,Over:5.5 / Under:5.5,Model vs Market probability differential,,
+NHL,2025-10-21T23:10:00Z,Toronto Maple Leafs,New Jersey Devils,Toronto Maple Leafs,50.0,0.0,Toronto Maple Leafs:1.85 | New Jersey Devils:1.98,New Jersey Devils:+1.5 | Toronto Maple Leafs:-1.5,Over:5.5 / Under:5.5,Model vs Market probability differential,,
+NHL,2025-10-21T23:10:00Z,New York Islanders,San Jose Sharks,New York Islanders,50.4,0.05,New York Islanders:1.43 | San Jose Sharks:2.9,New York Islanders:-1.5 | San Jose Sharks:+1.5,Over:6.5 / Under:6.5,Model vs Market probability differential,,
+NHL,2025-10-21T23:10:00Z,Pittsburgh Penguins,Vancouver Canucks,Vancouver Canucks,50.0,0.0,Pittsburgh Penguins:1.95 | Vancouver Canucks:1.87,Pittsburgh Penguins:-1.5 | Vancouver Canucks:+1.5,Over:6.5 / Under:6.5,Model vs Market probability differential,,
+NHL,2025-10-21T23:10:00Z,Washington Capitals,Seattle Kraken,Washington Capitals,50.5,0.06,Washington Capitals:1.39 | Seattle Kraken:3.1,Seattle Kraken:+1.5 | Washington Capitals:-1.5,Over:5.5 / Under:5.5,Model vs Market probability differential,,
+NHL,2025-10-21T23:40:00Z,Boston Bruins,Florida Panthers,Florida Panthers,50.2,0.02,Boston Bruins:2.3 | Florida Panthers:1.65,Boston Bruins:+1.5 | Florida Panthers:-1.5,Over:5.5 / Under:5.5,Model vs Market probability differential,,
+NHL,2025-10-22T00:10:00Z,Nashville Predators,Anaheim Ducks,Nashville Predators,50.1,0.01,Nashville Predators:1.77 | Anaheim Ducks:2.1,Anaheim Ducks:+1.5 | Nashville Predators:-1.5,Over:6.5 / Under:6.5,Model vs Market probability differential,,
+NHL,2025-10-22T00:10:00Z,Dallas Stars,Columbus Blue Jackets,Dallas Stars,50.3,0.04,Dallas Stars:1.51 | Columbus Blue Jackets:2.64,Columbus Blue Jackets:+1.5 | Dallas Stars:-1.5,Over:6.5 / Under:6.5,Model vs Market probability differential,,
+NHL,2025-10-22T00:10:00Z,St Louis Blues,Los Angeles Kings,St Louis Blues,50.1,0.01,St Louis Blues:1.74 | Los Angeles Kings:2.14,Los Angeles Kings:+1.5 | St Louis Blues:-1.5,Over:5.5 / Under:5.5,Model vs Market probability differential,,
+NHL,2025-10-22T02:10:00Z,Utah Mammoth,Colorado Avalanche,Colorado Avalanche,50.2,0.02,Utah Mammoth:2.24 | Colorado Avalanche:1.68,Colorado Avalanche:-1.5 | Utah Mammoth:+1.5,Over:5.5 / Under:5.5,Model vs Market probability differential,,
+NHL,2025-10-22T23:00:00Z,New Jersey Devils,Minnesota Wild,New Jersey Devils,50.1,0.02,New Jersey Devils:1.68 | Minnesota Wild:2.2,,,Model vs Market probability differential,,
+NHL,2025-10-22T23:30:00Z,Buffalo Sabres,Detroit Red Wings,Buffalo Sabres,50.1,0.01,Buffalo Sabres:1.79 | Detroit Red Wings:2.02,,,Model vs Market probability differential,,
+NHL,2025-10-23T00:30:00Z,Calgary Flames,Montréal Canadiens,Calgary Flames,50.0,0.0,Calgary Flames:1.88 | Montréal Canadiens:1.91,,,Model vs Market probability differential,,
+MLB,2025-10-25T00:00:00Z,Toronto Blue Jays,Los Angeles Dodgers,Los Angeles Dodgers,50.2,0.02,Toronto Blue Jays:2.29 | Los Angeles Dodgers:1.64,Los Angeles Dodgers:-1.5 | Toronto Blue Jays:+1.5,Over:7.5 / Under:7.5,Model vs Market probability differential,,
