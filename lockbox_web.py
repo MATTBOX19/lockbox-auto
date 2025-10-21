@@ -141,7 +141,6 @@ def index():
     except Exception as e:
         return f"Error reading CSV: {e}", 500
 
-    # Normalize sport codes
     sport_map = {
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "NCAA",
@@ -154,11 +153,21 @@ def index():
     for _, row in df.iterrows():
         sport = sport_map.get(str(row.get("Sport","")).strip(), row.get("Sport","Unknown"))
         pick = str(row.get("Pick","N/A"))
-        confidence = float(row.get("Confidence(%)", row.get("Confidence", 0)))
-        edge = float(row.get("Edge", 0))
+
+        conf_val = str(row.get("Confidence(%)", row.get("Confidence", "0"))).replace('%','').strip()
+        try:
+            confidence = float(conf_val)
+        except:
+            confidence = 0.0
+
+        edge_val = str(row.get("Edge", "0")).replace('%','').strip()
+        try:
+            edge = float(edge_val)
+        except:
+            edge = 0.0
 
         lock = confidence >= 105 or edge >= 4.0
-        upset = str(row.get("PickOdds","")).startswith("+")  # mark underdog as upset
+        upset = str(row.get("PickOdds","")).startswith("+")
 
         rows.append({
             "sport": sport,
@@ -185,7 +194,6 @@ def index():
     if top5: rows = rows[:5]
 
     updated_at = datetime.datetime.utcfromtimestamp(os.path.getmtime(csv_path)).strftime("%Y-%m-%d %H:%M UTC")
-
     sport_options = sorted(set(r["sport"] for r in rows if r["sport"]))
 
     return render_template_string(TEMPLATE, rows=rows, sport_options=sport_options,
