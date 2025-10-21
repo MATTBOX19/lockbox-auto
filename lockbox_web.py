@@ -22,7 +22,13 @@ TEMPLATE = """
   .updated { text-align:center; font-size:0.9rem; color:#8b949e; margin-top:-15px; }
   .filters { display:flex; justify-content:center; margin:15px; gap:10px; }
   select { background:#161b22; color:#c9d1d9; border:1px solid #30363d; padding:6px 10px; border-radius:6px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin:0 20px 40px; }
+  .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  max-width: 1400px;
+  margin: 0 auto 40px;
+  gap: 14px;
+  padding: 0 20px;
   .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; }
   .game-title { color:#58a6ff; font-weight:bold; font-size:1rem; margin-bottom:6px; }
   .pick { color:#e3b341; font-weight:bold; margin:4px 0; }
