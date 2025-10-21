@@ -1,5 +1,5 @@
 Sport,GameTime,Team1,Team2,MoneylinePick,Confidence(%),Edge,LockEmoji,UpsetEmoji,Reason
-americanfootball_nfl,2025-10-21T02:05:25Z,Houston Texans,Seattle Seahawks,Seattle Seahawks,101.4,3.0%,,,Model vs Market probability differential
+americanfootball_nfl,2025-10-21T02:05:25Z,Houston Texans,Seattle Seahawks,Seattle Seahawks,101.0,3.0%,,,Model vs Market probability differential
 americanfootball_nfl,2025-10-24T00:15:00Z,Minnesota Vikings,Los Angeles Chargers,Los Angeles Chargers,101.4,3.0%,,,Model vs Market probability differential
 americanfootball_nfl,2025-10-26T17:00:00Z,Miami Dolphins,Atlanta Falcons,Atlanta Falcons,101.7,3.0%,,,Model vs Market probability differential
 americanfootball_nfl,2025-10-26T17:00:00Z,Chicago Bears,Baltimore Ravens,Baltimore Ravens,101.7,3.0%,,,Model vs Market probability differential
@@ -64,4 +64,4 @@ icehockey_nhl,2025-10-22T00:10:00Z,Anaheim Ducks,Nashville Predators,Nashville P
 icehockey_nhl,2025-10-22T00:10:00Z,Columbus Blue Jackets,Dallas Stars,Dallas Stars,101.5,3.0%,,,Model vs Market probability differential
 icehockey_nhl,2025-10-22T00:10:00Z,Los Angeles Kings,St Louis Blues,St Louis Blues,101.3,3.0%,,,Model vs Market probability differential
 icehockey_nhl,2025-10-22T02:10:00Z,Colorado Avalanche,Utah Mammoth,Utah Mammoth,100.8,3.0%,,,Model vs Market probability differential
-baseball_mlb,2025-10-25T01:08:00Z,Los Angeles Dodgers,Toronto Blue Jays,Toronto Blue Jays,100.8,3.0%,,,Model vs Market probability differential
+baseball_mlb,2025-10-25T00:00:00Z,Los Angeles Dodgers,Toronto Blue Jays,Toronto Blue Jays,100.8,3.0%,,,Model vs Market probability differential
