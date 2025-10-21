@@ -152,12 +152,14 @@ def load_predictions():
 
     # ✅ Include College Football (NCAAF)
     df["Sport"] = df["Sport"].replace({
-        "americanfootball_nfl": "NFL",
-        "americanfootball_ncaaf": "CFB",
-        "basketball_nba": "NBA",
-        "baseball_mlb": "MLB",
-        "icehockey_nhl": "NHL"
-    })
+    "americanfootball_nfl": "NFL",
+    "americanfootball_ncaaf": "CFB",
+    "americanfootball_ncaa": "CFB",   
+    "basketball_nba": "NBA",
+    "baseball_mlb": "MLB",
+    "icehockey_nhl": "NHL"
+        })
+
 
     return df, os.path.basename(csv_path)
 
