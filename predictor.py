@@ -1,16 +1,15 @@
-cat > predictor.py <<'PY'
 #!/usr/bin/env python3
 """
-predictor.py — odds conversion fix
+predictor.py — odds conversion & edge fix
 
 - Converts bookmaker 'price' values correctly (decimal odds or American odds)
 - Normalizes market probabilities (vig removal)
 - Computes model probability, Edge (percentage points), Confidence (0..100)
 - Outputs Output/Predictions_YYYY-MM-DD_Explained.csv with numeric Edge & Confidence
-- Lock/Upset logic uses configurable thresholds via constants below
+- Lock/Upset logic uses configurable thresholds via constants or env vars
 """
+
 import os
-import math
 import requests
 import pandas as pd
 from datetime import datetime
@@ -24,14 +23,21 @@ API_KEY = os.getenv("ODDS_API_KEY")
 if not API_KEY:
     print("⚠️ Warning: ODDS_API_KEY not set in environment. API calls will likely fail.")
 
-SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
+# include NCAA football
+SPORTS = [
+    "americanfootball_nfl",
+    "americanfootball_ncaaf",
+    "basketball_nba",
+    "icehockey_nhl",
+    "baseball_mlb",
+]
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
 OUT_DIR = Path("Output")
 OUT_DIR.mkdir(exist_ok=True)
 
-# MODEL TUNABLES (adjust in env if desired)
+# MODEL TUNABLES (can be overridden via environment variables)
 MODEL_BIAS = float(os.getenv("MODEL_BIAS", "0.0"))          # absolute probability add-on (0.02 = +2%)
 ADJUST_FACTOR = float(os.getenv("ADJUST_FACTOR", "0.35"))   # amplifies market deviation from 0.5
 LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "0.5"))
@@ -43,9 +49,9 @@ def odds_price_to_prob(price):
     """
     Convert bookmaker price to implied probability (0..1).
     Handles:
-    - Decimal odds (e.g. 1.59) -> prob = 1 / price
-    - American odds (e.g. +150, -120) -> classic conversion
-    - If value already looks like a probability (0 < price < 1) return as-is
+      - Decimal odds (e.g. 1.59) -> prob = 1 / price
+      - American odds (e.g. +150, -120) -> classic conversion
+      - If value already looks like a probability (0 < price <= 1) return as-is
     Returns None if conversion not possible.
     """
     if price is None:
@@ -53,36 +59,35 @@ def odds_price_to_prob(price):
     try:
         p = float(price)
     except Exception:
-        # maybe a string like '+150' or '-120' with plus sign
+        # try to strip + sign then convert
+        s = str(price).strip().replace("+", "")
         try:
-            p = float(str(price).strip().replace("+",""))
+            p = float(s)
         except Exception:
             return None
 
-    # If number is in 0..1 assume it's already a probability
+    # Already a probability (0 < p <= 1)
     if 0.0 < p <= 1.0:
         return p
 
-    # American odds are typically absolute value > 100 (e.g., +150 or -120)
+    # American odds (|p| >= 100)
     if abs(p) >= 100.0:
-        # American format
         if p > 0:
             return 100.0 / (p + 100.0)
         else:
             return abs(p) / (abs(p) + 100.0)
 
-    # Decimal odds are typically >= 1.01 (e.g., 1.59)
+    # Decimal odds (>= ~1.01)
     if p >= 1.01:
         try:
             return 1.0 / p
         except Exception:
             return None
 
-    # Fallback: cannot parse
     return None
 
 def normalize_market_probs(home_prob, away_prob):
-    """Rescale two implied probs to remove vig so they sum to 1."""
+    """Rescale two implied probs to remove vig so they sum to 1 (returns tuple)."""
     if home_prob is None and away_prob is None:
         return None, None
     if home_prob is None:
@@ -101,15 +106,16 @@ def clamp(x, lo=0.001, hi=0.999):
         return lo
 
 def calculate_edge(model_prob, market_prob):
-    """Edge as percentage points, e.g. 2.21"""
+    """Return Edge as percentage points (e.g. 2.21)."""
     if model_prob is None or market_prob is None:
         return None
     return round((model_prob - market_prob) * 100.0, 2)
 
 def compute_model_home_prob(market_home_prob):
     """
-    Dynamic model:
-    model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
+    Dynamic model placeholder:
+      model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
+    Keeps result clamped to [0.01, 0.99].
     """
     if market_home_prob is None:
         return 0.52
@@ -117,7 +123,10 @@ def compute_model_home_prob(market_home_prob):
     return clamp(model_p, lo=0.01, hi=0.99)
 
 def safe_extract_ml_spread_total(bookmakers, home_team, away_team):
-    """Extract MLs and simple text for spread/total display from first bookmaker if possible."""
+    """
+    Extract ML prices and human-friendly spread/total text from first bookmaker.
+    Returns: (ml_home_price, ml_away_price, spread_text, total_text)
+    """
     ml_home = ml_away = None
     spread_text = ""
     total_text = ""
@@ -205,7 +214,7 @@ def run_predictor():
                 edge = calculate_edge(pick_model_prob, pick_market_prob) if pick_market_prob is not None else None
                 confidence = round(pick_model_prob * 100.0, 1) if pick_model_prob is not None else 0.0
 
-                # lock/upset detection
+                # lock/upset detection (explicit booleans -> emoji strings)
                 is_lock = False
                 is_upset = False
                 try:
@@ -233,8 +242,8 @@ def run_predictor():
                     "Team1": home_team,
                     "Team2": away_team,
                     "MoneylinePick": pick_team,
-                    "Confidence": confidence,
-                    "Edge": edge if edge is not None else 0.0,
+                    "Confidence": confidence,                 # numeric 0..100
+                    "Edge": edge if edge is not None else 0.0, # numeric percent points
                     "ML": ml_display,
                     "ATS": spread_text if spread_text else "",
                     "OU": total_text if total_text else "",
@@ -253,6 +262,7 @@ def run_predictor():
         return
 
     df = pd.DataFrame(all_rows)
+    # map sport keys to friendly labels for UI
     df["Sport"] = df["Sport"].replace({
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "CFB",
@@ -265,7 +275,7 @@ def run_predictor():
     df.to_csv(out_file, index=False)
     print(f"✅ Saved predictions to {out_file} (rows={len(df)})")
 
-    # Print quick stats
+    # quick stats for tuning
     try:
         edges = df["Edge"].astype(float)
         confs = df["Confidence"].astype(float)
@@ -279,4 +289,3 @@ def run_predictor():
 
 if __name__ == "__main__":
     run_predictor()
-PY
