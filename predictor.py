@@ -51,7 +51,7 @@ UPSET_EDGE_THRESHOLD = params["UPSET_EDGE_THRESHOLD"]
 API_KEY = os.getenv("ODDS_API_KEY")
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
-ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
+ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds/"
 SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
 
 # ======= UTILS =======
