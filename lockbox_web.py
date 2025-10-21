@@ -155,6 +155,8 @@ def load_predictions():
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "CFB",
         "americanfootball_ncaa": "CFB",
+        "NCAAF": "CFB",
+        "NCAA": "CFB",
         "basketball_nba": "NBA",
         "baseball_mlb": "MLB",
         "icehockey_nhl": "NHL"
