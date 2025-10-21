@@ -204,7 +204,7 @@ def load_predictions():
                     pass
             n = safe_float_from_string(val)
             edge_numeric.append(n if n is not None else 0.0)
-        df["Edge"] = pd.to_numeric(edge_numeric, errors="coerce").fillna(0.0)
+       df["Edge"] = pd.Series(pd.to_numeric(edge_numeric, errors="coerce")).fillna(0.0)
     else:
         df["Edge"] = 0.0
 
