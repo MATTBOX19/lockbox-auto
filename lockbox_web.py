@@ -2,15 +2,27 @@ from flask import Flask, render_template_string, request
 import pandas as pd
 import os
 from pathlib import Path
+import glob
 
 app = Flask(__name__)
 
-# === CONFIG ===
-OUTPUT_DIR = "/opt/render/project/src/Output"
-PRIMARY_FILE = "Predictions_2025-10-21_Explained.csv"
-FALLBACK_FILE = "Predictions_test.csv"
+# Config (can override via env)
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
+# If you want to pin a single file for debugging, set PRIMARY_FILE env var; otherwise newest file is used
+PRIMARY_FILE = os.getenv("PRIMARY_FILE", "")
+FALLBACK_FILE = os.path.join(OUTPUT_DIR, "Predictions_test.csv")
 
-# === HTML TEMPLATE ===
+# Thresholds (match predictor defaults; can override in Render env)
+try:
+    LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "0.5"))
+    LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "51.0"))
+    UPSET_EDGE_THRESHOLD = float(os.getenv("UPSET_EDGE_THRESHOLD", "0.3"))
+except Exception:
+    LOCK_EDGE_THRESHOLD = 0.5
+    LOCK_CONFIDENCE_THRESHOLD = 51.0
+    UPSET_EDGE_THRESHOLD = 0.3
+
+# HTML template (kept mostly the same; small footer added)
 TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -24,12 +36,13 @@ TEMPLATE = """
   .filters { display:flex; justify-content:center; margin:15px; gap:10px; }
   select { background:#161b22; color:#c9d1d9; border:1px solid #30363d; padding:6px 10px; border-radius:6px; }
   .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  max-width: 1400px;
-  margin: 0 auto 40px;
-  gap: 14px;
-  padding: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    max-width: 1400px;
+    margin: 0 auto 40px;
+    gap: 14px;
+    padding: 0 20px;
+  }
   .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; }
   .game-title { color:#58a6ff; font-weight:bold; font-size:1rem; margin-bottom:6px; }
   .pick { color:#e3b341; font-weight:bold; margin:4px 0; }
@@ -44,6 +57,7 @@ TEMPLATE = """
 <body>
   <h1>🔥 LockBox AI Picks 🔒</h1>
   <div class="updated">Your edge, every game — Updated: {{ updated }}</div>
+
   <div class="filters">
     <label>Sport</label>
     <select id="sport" onchange="updateFilters()">
@@ -52,6 +66,7 @@ TEMPLATE = """
       <option value="{{s}}" {% if s==sport %}selected{% endif %}>{{s}}</option>
       {% endfor %}
     </select>
+
     <label>Top 5</label>
     <select id="top5" onchange="updateFilters()">
       <option value="All" {% if top5=='All' %}selected{% endif %}>All</option>
@@ -80,71 +95,73 @@ TEMPLATE = """
   </div>
 
   <div class="footer">
-    <strong>Performance</strong> —
-    {% if perf.total == 0 %}
-      No predictions available.
-    {% else %}
-      Total: {{ perf.total }} |
-      Settled: {{ perf.settled }} |
-      ML Wins: {{ perf.wins }} |
-      ML Losses: {{ perf.losses }} |
-      Pushes: {{ perf.pushes }} |
-      Win%: {{ "%.1f"|format(perf.win_pct) }}%
+    {% if footer_text %}
+      {{ footer_text }}
     {% endif %}
   </div>
 
-  <script>
-    function updateFilters(){
-      const s=document.getElementById("sport").value;
-      const t=document.getElementById("top5").value;
-      window.location.href=`/?sport=${s}&top5=${t}`;
-    }
-  </script>
+<script>
+  function updateFilters(){
+    const s=document.getElementById("sport").value;
+    const t=document.getElementById("top5").value;
+    window.location.href=`/?sport=${s}&top5=${t}`;
+  }
+</script>
 </body>
 </html>
 """
 
+def find_latest_file():
+    # If PRIMARY_FILE env var is set and exists, use it.
+    if PRIMARY_FILE:
+        p = os.path.join(OUTPUT_DIR, PRIMARY_FILE)
+        if os.path.exists(p):
+            return p
+    # Otherwise pick newest Predictions_*_Explained.csv
+    files = glob.glob(os.path.join(OUTPUT_DIR, "Predictions_*_Explained.csv"))
+    if not files:
+        # fallback
+        f = FALLBACK_FILE if os.path.exists(FALLBACK_FILE) else None
+        return f
+    files.sort(key=os.path.getmtime, reverse=True)
+    return files[0]
+
 def load_predictions():
-    """Load the most recent predictions file safely."""
-    primary = os.path.join(OUTPUT_DIR, PRIMARY_FILE)
-    fallback = os.path.join(OUTPUT_DIR, FALLBACK_FILE)
-    csv_path = primary if os.path.exists(primary) else fallback
-
-    if not os.path.exists(csv_path):
-        # try to use the newest file in Output as last resort
-        files = sorted([os.path.join(OUTPUT_DIR, f) for f in os.listdir(OUTPUT_DIR) if f.startswith("Predictions_")])
-        csv_path = files[-1] if files else None
-
-    if not csv_path or not os.path.exists(csv_path):
+    csv_path = find_latest_file()
+    if not csv_path:
         # return empty df
         df = pd.DataFrame(columns=["Sport","GameTime","Team1","Team2","MoneylinePick","Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"])
-        return df, "None"
-
+        return df, "NO_FILE"
     df = pd.read_csv(csv_path)
     df.columns = [c.strip() for c in df.columns]
 
-    # Normalize column names
-    if "Confidence(%)" in df.columns:
-        df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
+    # normalize older/variant column names
+    if "Confidence(%)" in df.columns and "Confidence" not in df.columns:
+        df.rename(columns={"Confidence(%)":"Confidence"}, inplace=True)
+
+    # Edge cleaning: remove "%" if present and coerce to float
     if "Edge" in df.columns:
-        # remove % if present, otherwise convert numeric
         df["Edge"] = df["Edge"].astype(str).str.replace("%","",regex=False)
-    if "Edge" not in df.columns:
-        df["Edge"] = 0
+        df["Edge"] = pd.to_numeric(df["Edge"], errors="coerce").fillna(0.0)
+    else:
+        df["Edge"] = 0.0
 
-    # Ensure numeric types and safe defaults
-    df["Confidence"] = pd.to_numeric(df.get("Confidence", 0), errors="coerce").fillna(0)
-    df["Edge"] = pd.to_numeric(df.get("Edge", 0), errors="coerce").fillna(0.0)
+    # Confidence numeric
+    df["Confidence"] = pd.to_numeric(df.get("Confidence", 0), errors="coerce").fillna(0.0)
 
-    if "MoneylinePick" not in df.columns:
-        df["MoneylinePick"] = "N/A"
-    # Ensure emojis are strings
-    for col in ["LockEmoji","UpsetEmoji"]:
-        if col not in df.columns:
-            df[col] = ""
-        else:
-            df[col] = df[col].fillna("").astype(str)
+    # Ensure ML/ATS/OU columns exist
+    if "ML" not in df.columns:
+        df["ML"] = df.get("Moneyline","")
+    if "ATS" not in df.columns:
+        df["ATS"] = ""
+    if "OU" not in df.columns:
+        df["OU"] = ""
 
+    # Ensure LockEmoji/UpsetEmoji exist and are strings (avoid NaN)
+    df["LockEmoji"] = df.get("LockEmoji", "").fillna("").astype(str)
+    df["UpsetEmoji"] = df.get("UpsetEmoji", "").fillna("").astype(str)
+
+    # Convert Sport codes to friendly names if needed
     df["Sport"] = df["Sport"].replace({
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "CFB",
@@ -152,36 +169,8 @@ def load_predictions():
         "baseball_mlb": "MLB",
         "icehockey_nhl": "NHL"
     })
+
     return df, os.path.basename(csv_path)
-
-def compute_performance():
-    """
-    Read the latest Settled CSV if present (Predictions_*_Settled.csv),
-    otherwise try the latest Explained CSV and compute simple ML stats.
-    """
-    out = Path(OUTPUT_DIR)
-    settled_files = sorted(out.glob("Predictions_*_Settled.csv"))
-    explained_files = sorted(out.glob("Predictions_*_Explained.csv"))
-
-    path = settled_files[-1] if settled_files else (explained_files[-1] if explained_files else None)
-    if not path:
-        return {"total": 0, "settled": 0, "wins": 0, "losses": 0, "pushes": 0, "win_pct": 0.0}
-
-    df = pd.read_csv(path)
-    cols = [c.strip() for c in df.columns]
-
-    total = len(df)
-    # Settle-aware columns
-    ml_col = "ML_Result" if "ML_Result" in cols else None
-    settled_mask = df[ml_col].notna() & (df[ml_col].astype(str).str.strip() != "") if ml_col else pd.Series([False]*len(df))
-
-    settled = int(settled_mask.sum()) if len(df)>0 else 0
-    wins = int((df[ml_col].astype(str).str.upper() == "W").sum()) if ml_col else 0
-    losses = int((df[ml_col].astype(str).str.upper() == "L").sum()) if ml_col else 0
-    pushes = int((df[ml_col].astype(str).str.upper() == "PUSH").sum()) if ml_col else 0
-    win_pct = (wins / settled * 100.0) if settled>0 else 0.0
-
-    return {"total": total, "settled": settled, "wins": wins, "losses": losses, "pushes": pushes, "win_pct": win_pct}
 
 @app.route("/")
 def index():
@@ -191,22 +180,48 @@ def index():
     df, filename = load_predictions()
     sports = sorted(df["Sport"].dropna().unique())
 
-    # Determine Lock/UpSet emojis (fallback if CSV doesn't provide them)
-    df["LockEmoji"] = df.apply(lambda x: x.get("LockEmoji","") if str(x.get("LockEmoji","")).strip() else ("🔒" if float(x["Edge"]) >= 4 and float(x["Confidence"]) >= 60 else ""), axis=1)
-    df["UpsetEmoji"] = df.apply(lambda x: x.get("UpsetEmoji","") if str(x.get("UpsetEmoji","")).strip() else ("🚨" if float(x["Edge"]) >= 2 and (x.get("MoneylinePick") not in [x["Team1"], x["Team2"]])==False and float(x["Edge"])>0 and float(x["Confidence"])<50 else ""), axis=1)
+    # If predictor already wrote LockEmoji/UpsetEmoji, respect those values.
+    # For rows where LockEmoji is empty string, compute using thresholds.
+    try:
+        mask_missing_lock = df["LockEmoji"].astype(str).str.strip() == ""
+        df.loc[mask_missing_lock, "LockEmoji"] = df[mask_missing_lock].apply(
+            lambda r: "🔒" if (r.get("Edge",0) >= LOCK_EDGE_THRESHOLD and r.get("Confidence",0) >= LOCK_CONFIDENCE_THRESHOLD) else "",
+            axis=1
+        )
+    except Exception:
+        # fallback no-op
+        pass
+
+    try:
+        mask_missing_upset = df["UpsetEmoji"].astype(str).str.strip() == ""
+        df.loc[mask_missing_upset, "UpsetEmoji"] = df[mask_missing_upset].apply(
+            lambda r: "🚨" if (r.get("Edge",0) >= UPSET_EDGE_THRESHOLD and r.get("MoneylinePick","") and r.get("Confidence",0) < 52) else "",
+            axis=1
+        )
+    except Exception:
+        pass
 
     # Filter by sport
     if sport != "All":
         df = df[df["Sport"] == sport]
 
-    # Top 5 picks per sport by Edge×Confidence
+    # Top 5 picks per sport by Edge×Confidence (if requested)
     if top5 == "1":
-        df["Score"] = df["Edge"] * df["Confidence"]
+        df["Score"] = df["Edge"].astype(float) * df["Confidence"].astype(float)
         df = df.sort_values("Score", ascending=False).head(5)
 
+    # Footer: show settled counts if present
+    footer_text = ""
+    if "Settled" in df.columns:
+        total = len(df)
+        needs = int((df["Settled"] == "NEEDS_SETTLING").sum())
+        auto = int((df["Settled"] == "AUTO").sum())
+        footer_text = f"Settled: AUTO={auto} | NEEDS_SETTLING={needs} | Total shown={total}"
+    else:
+        footer_text = f"Showing {len(df)} picks from {filename}"
+
     records = df.to_dict(orient="records")
-    perf = compute_performance()
-    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5, perf=perf)
+    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5, footer_text=footer_text)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
