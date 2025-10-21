@@ -1,137 +1,140 @@
-import os
-import time
+from flask import Flask, render_template_string, request
 import pandas as pd
-from flask import Flask, render_template_string
+import os
 
 app = Flask(__name__)
 
+# === CONFIG ===
+OUTPUT_DIR = "/opt/render/project/src/Output"
+PRIMARY_FILE = "Predictions_2025-10-21_Explained.csv"
+FALLBACK_FILE = "Predictions_test.csv"
+
+# === HTML TEMPLATE ===
 TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>🔥 LockBox AI Picks 🔒</title>
 <style>
-body{background:#0d1117;color:#c9d1d9;font-family:Inter,Arial,sans-serif;margin:0;padding:1rem;}
-h1{color:#58a6ff;text-align:center;}
-.update{text-align:center;color:#8b949e;margin-bottom:1rem;}
-select{background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:6px;margin:4px;}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;}
-.card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1rem;}
-.sport-tag{float:right;background:#0d419d;color:white;padding:3px 8px;border-radius:8px;font-size:0.8rem;}
-.team-pick{color:#f1c40f;font-weight:600;}
-.meta{color:#8b949e;font-size:0.9rem;}
+  body { background-color:#0d1117; color:#c9d1d9; font-family:Arial, sans-serif; margin:0; padding:0; }
+  h1 { color:#58a6ff; text-align:center; padding:20px 0; }
+  .updated { text-align:center; font-size:0.9rem; color:#8b949e; margin-top:-15px; }
+  .filters { display:flex; justify-content:center; margin:15px; gap:10px; }
+  select { background:#161b22; color:#c9d1d9; border:1px solid #30363d; padding:6px 10px; border-radius:6px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin:0 20px 40px; }
+  .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; }
+  .game-title { color:#58a6ff; font-weight:bold; font-size:1rem; margin-bottom:6px; }
+  .pick { color:#e3b341; font-weight:bold; margin:4px 0; }
+  .meta { font-size:0.9rem; color:#8b949e; }
+  .edge { color:#3fb950; font-weight:bold; float:right; }
+  .badge { background:#21262d; border-radius:4px; padding:3px 6px; font-size:0.8rem; color:#79c0ff; float:right; }
+  .lock { color:#f0c420; margin-left:4px; }
+  .upset { color:#f85149; margin-left:4px; }
 </style>
 </head>
 <body>
-<h1>🔥 LockBox AI Picks 🔒</h1>
-<div class="update">Your edge, every game — Updated: {{ updated }}</div>
-
-<div style="text-align:center;">
-  Sport:
-  <select id="sportFilter" onchange="filterCards()">
-    <option value="All">All</option>
-    <option value="NFL">NFL</option>
-    <option value="NCAA Football">NCAA Football</option>
-    <option value="NBA">NBA</option>
-    <option value="MLB">MLB</option>
-    <option value="NHL">NHL</option>
-  </select>
-  &nbsp;&nbsp;Top 5:
-  <select id="topFilter" onchange="filterCards()">
-    <option value="All">All</option>
-    <option value="Top5">Top 5</option>
-  </select>
-</div>
-
-<div class="grid" id="cards">
-{% for row in rows %}
-  <div class="card" data-sport="{{ row.sport_display }}">
-    <div><strong>{{ row.matchup }}</strong><span class="sport-tag">{{ row.sport_display }}</span></div>
-    <div class="meta">{{ row.gametime }}</div>
-    <div class="team-pick">
-      {{ row.pick_display }}
-      {% if row.lock %}🔒{% endif %}
-      {% if row.upset %}🚨{% endif %}
-    </div>
-    <div class="meta">Confidence: {{ row.confidence }} % | Edge: {{ row.edge }} %</div>
-    <div class="meta">ML: {{ row.ml }} | ATS: {{ row.ats }} | O/U: {{ row.ou }}</div>
-    <div class="meta">{{ row.reason }}</div>
+  <h1>🔥 LockBox AI Picks 🔒</h1>
+  <div class="updated">Your edge, every game — Updated: {{ updated }}</div>
+  <div class="filters">
+    <label>Sport</label>
+    <select id="sport" onchange="updateFilters()">
+      <option value="All">All</option>
+      {% for s in sports %}
+      <option value="{{s}}" {% if s==sport %}selected{% endif %}>{{s}}</option>
+      {% endfor %}
+    </select>
+    <label>Top 5</label>
+    <select id="top5" onchange="updateFilters()">
+      <option value="All" {% if top5=='All' %}selected{% endif %}>All</option>
+      <option value="1" {% if top5=='1' %}selected{% endif %}>Top 5</option>
+    </select>
   </div>
-{% endfor %}
-</div>
 
-<script>
-function filterCards(){
-  const sport=document.getElementById('sportFilter').value;
-  const top=document.getElementById('topFilter').value;
-  const cards=[...document.querySelectorAll('.card')];
-  cards.forEach((c,i)=>{
-    const matchSport=(sport==="All"||c.dataset.sport===sport);
-    const matchTop=(top==="All"||(i<5));
-    c.style.display=(matchSport&&matchTop)?"block":"none";
-  });
-}
-</script>
+  <div class="grid">
+    {% for row in data %}
+      <div class="card">
+        <div class="game-title">
+          {{ row.Team1 }} vs {{ row.Team2 }}
+          <span class="badge">{{ row.Sport }}</span>
+          {% if row.LockEmoji %}<span class="lock">{{ row.LockEmoji }}</span>{% endif %}
+          {% if row.UpsetEmoji %}<span class="upset">{{ row.UpsetEmoji }}</span>{% endif %}
+        </div>
+        <div class="meta">{{ row.GameTime }}</div>
+        <div class="pick">{{ row.MoneylinePick }}</div>
+        <div class="meta">
+          Confidence: {{ "%.1f"|format(row.Confidence) }} % | Edge: {{ "%.1f"|format(row.Edge) }} %
+          <br>ML: {{ row.MoneylinePick }} | ATS: {{ row.ATS }} | O/U: {{ row.OU }}
+          <br>{{ row.Reason }}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    function updateFilters(){
+      const s=document.getElementById("sport").value;
+      const t=document.getElementById("top5").value;
+      window.location.href=`/?sport=${s}&top5=${t}`;
+    }
+  </script>
 </body>
 </html>
 """
 
-def normalize_sport(s):
-    s=str(s).lower()
-    if "nfl" in s: return "NFL"
-    if "ncaaf" in s or "college" in s or "cfb" in s: return "NCAA Football"
-    if "nba" in s: return "NBA"
-    if "mlb" in s: return "MLB"
-    if "nhl" in s: return "NHL"
-    return s.upper()
+def load_predictions():
+    """Load the most recent predictions file safely."""
+    primary = os.path.join(OUTPUT_DIR, PRIMARY_FILE)
+    fallback = os.path.join(OUTPUT_DIR, FALLBACK_FILE)
+    csv_path = primary if os.path.exists(primary) else fallback
+
+    df = pd.read_csv(csv_path)
+    df.columns = [c.strip() for c in df.columns]
+
+    # Normalize column names
+    if "Confidence(%)" in df.columns:
+        df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
+    if "Edge" not in df.columns:
+        df["Edge"] = 0
+    if "MoneylinePick" not in df.columns:
+        df["MoneylinePick"] = "N/A"
+    if "Reason" not in df.columns:
+        df["Reason"] = "Model vs Market probability differential"
+
+    df["Confidence"] = pd.to_numeric(df["Confidence"], errors="coerce").fillna(0)
+    df["Edge"] = df["Edge"].astype(str).str.replace("%","",regex=False).astype(float)
+    df["Sport"] = df["Sport"].replace({
+        "americanfootball_nfl": "NFL",
+        "americanfootball_ncaaf": "CFB",
+        "basketball_nba": "NBA",
+        "baseball_mlb": "MLB",
+        "icehockey_nhl": "NHL"
+    })
+    return df, os.path.basename(csv_path)
 
 @app.route("/")
 def index():
-    # wait for valid CSV (guard)
-    for _ in range(10):
-        csv_files=[f for f in os.listdir("Output") if f.endswith(".csv") and "Predictions_" in f]
-        if csv_files: break
-        time.sleep(1)
-    if not csv_files:
-        return "No prediction file found yet. Try again shortly."
-    latest=sorted(csv_files)[-1]
-    path=os.path.join("Output",latest)
-    if os.path.getsize(path)<100:  # guard for empty test.csv
-        time.sleep(2)
-    df=pd.read_csv(path)
-    if df.empty:
-        return "Waiting for predictions to populate..."
+    sport = request.args.get("sport","All")
+    top5 = request.args.get("top5","All")
 
-    rows=[]
-    for _,r in df.iterrows():
-        sport_display=normalize_sport(r.get("Sport",""))
-        try: conf=float(str(r.get("Confidence(%)","0")).replace("%",""))
-        except: conf=0
-        try: edge=float(str(r.get("Edge","0")).replace("%",""))
-        except: edge=0
-        pick=str(r.get("MoneylinePick","—"))
-        reason=str(r.get("Reason","Model vs Market probability differential")).strip()
-        lock=edge>=4 or conf>=102
-        upset=("underdog" in reason.lower()) or (conf<100 and edge>=2.5)
-        rows.append({
-          "sport_display":sport_display,
-          "matchup":f"{r.get('Team1','')} vs {r.get('Team2','')}",
-          "gametime":r.get("GameTime",""),
-          "pick_display":pick,
-          "confidence":f"{conf:.1f}",
-          "edge":f"{edge:.1f}",
-          "ml":pick,
-          "ats":"—",
-          "ou":"—",
-          "reason":reason,
-          "lock":lock,
-          "upset":upset
-        })
+    df, filename = load_predictions()
+    sports = sorted(df["Sport"].dropna().unique())
 
-    return render_template_string(TEMPLATE,rows=rows,
-           updated=latest.replace("Predictions_","").replace("_Explained.csv",""))
+    # Determine Lock/UpSet emojis
+    df["LockEmoji"] = df.apply(lambda x: "🔒" if x["Confidence"] >= 101 else "", axis=1)
+    df["UpsetEmoji"] = df.apply(lambda x: "🚨" if "Upset" in str(x.get("Reason","")).lower() else "", axis=1)
 
-if __name__=="__main__":
-    app.run(host="0.0.0.0",port=5000)
+    # Filter by sport
+    if sport != "All":
+        df = df[df["Sport"] == sport]
+
+    # Top 5 picks per sport by Edge×Confidence
+    if top5 == "1":
+        df["Score"] = df["Edge"] * df["Confidence"]
+        df = df.sort_values("Score", ascending=False).head(5)
+
+    records = df.to_dict(orient="records")
+    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
