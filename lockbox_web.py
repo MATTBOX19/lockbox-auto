@@ -1,54 +1,142 @@
 from flask import Flask, render_template_string
+import os
 import pandas as pd
-from pathlib import Path
+from datetime import datetime
 
 app = Flask(__name__)
 
+# --- HTML template for displaying the predictions ---
 TEMPLATE = """
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8"/>
-<title>LockBox AI Picks</title>
-<style>
-body{background:#0d1117;color:#e6eef6;font-family:system-ui;margin:0;padding:28px;}
-.container{max-width:1200px;margin:auto;}
-.brand{color:#1fb6ff;font-weight:800;font-size:28px;text-align:center;}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
-.card{background:#0f1720;padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.6);}
-.pick{color:#ffd24a;font-weight:700;margin-bottom:8px}
-.meta{font-size:13px;color:#9aa6b2;margin-bottom:6px}
-.lock{color:#f6c84c} .upset{color:#ff5c5c}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LockBox Daily Predictions</title>
+    <style>
+        body {
+            background-color: #0b0b0d;
+            color: #e6e6e6;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        h3 {
+            color: #999;
+            margin-top: 0;
+        }
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            background-color: #151519;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #222;
+        }
+        th {
+            background-color: #1f1f25;
+            color: #00d4ff;
+        }
+        tr:hover {
+            background-color: #222;
+        }
+        .league {
+            margin-top: 40px;
+            color: #ff9900;
+            text-transform: uppercase;
+            border-bottom: 2px solid #ff9900;
+            display: inline-block;
+            padding-bottom: 4px;
+        }
+        .timestamp {
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-  <div class="brand">🔥 LockBox AI Top 5 Picks 🔥</div>
-  {% for g in top %}
-  <div class="card">
-    <div class="meta">{{g.Sport}} | {{g.GameTime}}</div>
-    <div class="pick">{{g.MoneylinePick}} {{g.LockEmoji}}{{g.UpsetEmoji}}</div>
-    <div>Confidence: {{g['Confidence(%)']}} %  | Edge: {{g.Edge}}</div>
-  </div>
-  {% endfor %}
-</div>
+    <h1>🏈🏀 LockBox Daily Predictions 🏒⚾</h1>
+    <h3>Automatically updated every 24 hours</h3>
+
+    {% if predictions %}
+        {% for league, games in predictions.items() %}
+            <h2 class="league">{{ league }}</h2>
+            <table>
+                <tr>
+                    {% for col in games.columns %}
+                        <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+                {% for _, row in games.iterrows() %}
+                <tr>
+                    {% for val in row %}
+                        <td>{{ val }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+        {% endfor %}
+    {% else %}
+        <p>No prediction files found yet.</p>
+    {% endif %}
+
+    <div class="timestamp">
+        {% if timestamp %}
+            Last updated: {{ timestamp }}
+        {% endif %}
+    </div>
 </body>
 </html>
 """
 
+def get_latest_prediction():
+    """Find the newest predictions file in Output/."""
+    output_dir = os.path.join(os.getcwd(), "Output")
+    if not os.path.exists(output_dir):
+        return None, None
+
+    files = [f for f in os.listdir(output_dir) if f.endswith("_Explained.csv")]
+    if not files:
+        return None, None
+
+    latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(output_dir, x)))
+    timestamp = datetime.fromtimestamp(os.path.getmtime(os.path.join(output_dir, latest_file))).strftime("%Y-%m-%d %H:%M:%S")
+
+    df = pd.read_csv(os.path.join(output_dir, latest_file))
+
+    # Detect leagues from Team names or separate League column
+    leagues = ["NFL", "NCAA", "NBA", "NHL", "MLB"]
+    predictions = {}
+    if "League" in df.columns:
+        for lg in leagues:
+            league_df = df[df["League"].str.contains(lg, case=False, na=False)]
+            if not league_df.empty:
+                predictions[lg] = league_df
+    else:
+        # fallback: split evenly by league name in team columns
+        for lg in leagues:
+            mask = df.apply(lambda x: x.astype(str).str.contains(lg, case=False)).any(axis=1)
+            if mask.any():
+                predictions[lg] = df[mask]
+
+    return predictions, timestamp
+
+
 @app.route("/")
 def index():
-    out = Path("Output")
-    files = sorted(out.glob("Predictions_*_Explained.csv")) if out.exists() else []
-    f = files[-1] if files else None
-    if not f:
-        return "No predictions yet."
-    df = pd.read_csv(f)
-    df["Confidence(%)"] = pd.to_numeric(df["Confidence(%)"], errors="coerce").fillna(0)
-    df["EdgeNum"] = pd.to_numeric(df["Edge"].str.replace("%",""), errors="coerce").fillna(0)
-    df["Score"] = df["Confidence(%)"] * (1 + df["EdgeNum"]/100)
-    top = df.sort_values("Score", ascending=False).head(5).to_dict(orient="records")
-    return render_template_string(TEMPLATE, top=top)
+    predictions, timestamp = get_latest_prediction()
+    return render_template_string(TEMPLATE, predictions=predictions, timestamp=timestamp)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
