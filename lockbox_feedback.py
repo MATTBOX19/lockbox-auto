@@ -1,108 +1,149 @@
 #!/usr/bin/env python3
 """
-lockbox_feedback.py
-
-Phase 9: AI Feedback Trainer
-----------------------------
-
-Purpose:
-  LockBox learns from its own performance over time.
-
-It automatically:
-  - Reads metrics.json for historical accuracy and ROI.
-  - Adjusts key model parameters (ADJUST_FACTOR, LOCK_EDGE_THRESHOLD, etc.)
-  - Logs parameter changes for traceability.
-  - Produces updated predictor_config.json that predictor.py will read.
-
-This makes LockBox self-tuning over time.
+lockbox_feedback.py — Phase 11
+Tracks completed games, compares LockBox picks vs real results,
+and automatically adjusts predictor_config.json to improve win rate.
 """
 
+import os
 import json
-import statistics
-from datetime import datetime
+import pandas as pd
+import requests
+from datetime import datetime, timezone
 from pathlib import Path
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# ======= PATHS =======
 ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
 CONFIG_FILE = OUT_DIR / "predictor_config.json"
-METRICS_FILE = OUT_DIR / "metrics.json"
-LOG_FILE = OUT_DIR / "feedback_log.txt"
+PREDICTIONS_DIR = OUT_DIR
+SCORES_API = "https://api.the-odds-api.com/v4/sports/{sport}/scores/"
 
-# Default parameters (baseline)
-params = {
+API_KEY = os.getenv("ODDS_API_KEY")
+
+# ======= LOAD CONFIG =======
+CONFIG_DEFAULTS = {
     "ADJUST_FACTOR": 0.35,
     "LOCK_EDGE_THRESHOLD": 0.5,
     "LOCK_CONFIDENCE_THRESHOLD": 51.0,
     "UPSET_EDGE_THRESHOLD": 0.3
 }
 
-def load_metrics():
-    if METRICS_FILE.exists():
+def load_config():
+    if CONFIG_FILE.exists():
         try:
-            with open(METRICS_FILE) as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data[-10:]  # last 10 sessions
+            with open(CONFIG_FILE) as f:
+                cfg = json.load(f)
+                print(f"🧠 Loaded adaptive config: {cfg}")
+                return {**CONFIG_DEFAULTS, **cfg}
         except Exception as e:
-            print(f"Error loading metrics: {e}")
-    return []
+            print(f"⚠️ Failed to load config: {e}")
+    return CONFIG_DEFAULTS
 
-def adaptive_tuning(metrics):
-    if not metrics:
-        print("No metrics found, using defaults.")
-        return params
+# ======= FETCH SCORES =======
+def fetch_scores(sport, days=3):
+    url = SCORES_API.format(sport=sport)
+    params = {"apiKey": API_KEY, "daysFrom": days}
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        if r.status_code != 200:
+            print(f"⚠️ {sport} returned {r.status_code}")
+            return []
+        return r.json()
+    except Exception as e:
+        print(f"⚠️ Error fetching scores: {e}")
+        return []
 
-    win_rates = [m.get("win_pct", 0) for m in metrics if m.get("win_pct")]
-    rois = [m.get("roi_percent", 0) for m in metrics if m.get("roi_percent")]
-    edges = [m.get("avg_edge", 0) for m in metrics if m.get("avg_edge")]
-    confs = [m.get("avg_confidence", 0) for m in metrics if m.get("avg_confidence")]
+# ======= MAIN FEEDBACK =======
+def evaluate_predictions():
+    cfg = load_config()
+    latest_csvs = sorted(PREDICTIONS_DIR.glob("Predictions_*.csv"))
+    if not latest_csvs:
+        print("❌ No predictions found.")
+        return
+    latest_file = latest_csvs[-1]
+    print(f"📂 Evaluating {latest_file.name}")
 
-    avg_win = statistics.mean(win_rates) if win_rates else 50
-    avg_roi = statistics.mean(rois) if rois else 0
-    avg_edge = statistics.mean(edges) if edges else 0.1
-    avg_conf = statistics.mean(confs) if confs else 50.5
+    df = pd.read_csv(latest_file)
+    if df.empty:
+        print("❌ CSV empty.")
+        return
 
-    print(f"📊 Historical averages: Win={avg_win:.1f} ROI={avg_roi:.2f}% Edge={avg_edge:.2f} Conf={avg_conf:.1f}")
+    sports = df["Sport"].unique()
+    all_scores = {}
 
-    new_params = params.copy()
+    for s in sports:
+        key_map = {
+            "NFL": "americanfootball_nfl",
+            "NCAAF": "americanfootball_ncaaf",
+            "NBA": "basketball_nba",
+            "NHL": "icehockey_nhl",
+            "MLB": "baseball_mlb"
+        }
+        sport_key = key_map.get(s)
+        if not sport_key:
+            continue
+        scores = fetch_scores(sport_key)
+        all_scores[s] = {x["home_team"]: x for x in scores}
 
-    # Adjust dynamically
-    if avg_win > 55 and avg_roi > 5:
-        new_params["ADJUST_FACTOR"] = min(0.5, params["ADJUST_FACTOR"] + 0.05)
-    elif avg_win < 48:
-        new_params["ADJUST_FACTOR"] = max(0.2, params["ADJUST_FACTOR"] - 0.05)
+    results = []
+    wins = 0
+    for _, row in df.iterrows():
+        sport = row["Sport"]
+        teams = [row["Team1"], row["Team2"]]
+        pick = row["MoneylinePick"]
 
-    if avg_roi > 5:
-        new_params["LOCK_EDGE_THRESHOLD"] = max(0.4, params["LOCK_EDGE_THRESHOLD"] - 0.05)
-    elif avg_roi < 0:
-        new_params["LOCK_EDGE_THRESHOLD"] = min(0.6, params["LOCK_EDGE_THRESHOLD"] + 0.05)
+        sport_scores = all_scores.get(sport, {})
+        matched = None
+        for t in teams:
+            if t in sport_scores:
+                matched = sport_scores[t]
+                break
+        if not matched or not matched.get("scores"):
+            continue
 
-    if avg_conf > 52:
-        new_params["LOCK_CONFIDENCE_THRESHOLD"] = min(53, params["LOCK_CONFIDENCE_THRESHOLD"] + 0.5)
-    elif avg_conf < 50.2:
-        new_params["LOCK_CONFIDENCE_THRESHOLD"] = max(50, params["LOCK_CONFIDENCE_THRESHOLD"] - 0.5)
+        scores = matched["scores"]
+        score_map = {s["name"]: int(s["score"]) for s in scores if s["score"].isdigit()}
+        winner = max(score_map, key=score_map.get)
+        result = "WIN" if winner == pick else "LOSS"
+        if result == "WIN":
+            wins += 1
 
-    return new_params
+        results.append({
+            "Sport": sport,
+            "Pick": pick,
+            "Winner": winner,
+            "Result": result
+        })
 
-def save_config(updated):
-    CONFIG_FILE.write_text(json.dumps(updated, indent=2))
-    print(f"✅ Saved new config → {CONFIG_FILE}")
+    if not results:
+        print("⚙️ No completed games yet.")
+        return
 
-    with open(LOG_FILE, "a") as log:
-        log.write(f"[{datetime.utcnow()}] Updated parameters: {json.dumps(updated)}\n")
+    res_df = pd.DataFrame(results)
+    win_rate = (wins / len(results)) * 100
+    print(f"📊 Win rate: {win_rate:.1f}% ({wins}/{len(results)})")
 
-def run_feedback():
-    print("===================================")
-    print(" 🔁 LOCKBOX AI FEEDBACK TRAINER ")
-    print("===================================")
+    # ======= ADAPTIVE TUNING =======
+    adjust = cfg["ADJUST_FACTOR"]
+    if win_rate < 60:
+        adjust *= 0.9
+    elif win_rate > 70:
+        adjust *= 1.05
+    cfg["ADJUST_FACTOR"] = round(adjust, 3)
+    cfg["LAST_WIN_RATE"] = round(win_rate, 2)
+    cfg["LAST_UPDATE"] = datetime.now(timezone.utc).isoformat()
 
-    metrics = load_metrics()
-    updated = adaptive_tuning(metrics)
-    save_config(updated)
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print(f"✅ Updated {CONFIG_FILE} with new ADJUST_FACTOR={cfg['ADJUST_FACTOR']}")
 
-    print("===================================")
-    print("✅ Feedback phase complete.")
-    print("===================================")
+    res_file = OUT_DIR / f"Results_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"
+    res_df.to_csv(res_file, index=False)
+    print(f"📁 Saved results to {res_file}")
 
 if __name__ == "__main__":
-    run_feedback()
+    evaluate_predictions()
