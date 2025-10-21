@@ -1,6 +1,7 @@
 from flask import Flask, render_template_string, request
 import pandas as pd
 import os
+from pathlib import Path
 
 app = Flask(__name__)
 
@@ -37,6 +38,7 @@ TEMPLATE = """
   .badge { background:#21262d; border-radius:4px; padding:3px 6px; font-size:0.8rem; color:#79c0ff; float:right; }
   .lock { color:#f0c420; margin-left:4px; }
   .upset { color:#f85149; margin-left:4px; }
+  .footer { max-width:1400px; margin: 0 auto 30px; color:#8b949e; font-size:0.9rem; padding: 10px 20px; text-align:center; }
 </style>
 </head>
 <body>
@@ -69,12 +71,26 @@ TEMPLATE = """
         <div class="meta">{{ row.GameTime }}</div>
         <div class="pick">{{ row.MoneylinePick }}</div>
         <div class="meta">
-          Confidence: {{ "%.1f"|format(row.Confidence) }} % | Edge: {{ "%.1f"|format(row.Edge) }} %
-          <br>ML: {{ row.MoneylinePick }} | ATS: {{ row.ATS }} | O/U: {{ row.OU }}
+          Confidence: {{ "%.1f"|format(row.Confidence) }} % | Edge: {{ "%.2f"|format(row.Edge) }} %
+          <br>ML: {{ row.ML }} | ATS: {{ row.ATS }} | O/U: {{ row.OU }}
           <br>{{ row.Reason }}
         </div>
       </div>
     {% endfor %}
+  </div>
+
+  <div class="footer">
+    <strong>Performance</strong> —
+    {% if perf.total == 0 %}
+      No predictions available.
+    {% else %}
+      Total: {{ perf.total }} |
+      Settled: {{ perf.settled }} |
+      ML Wins: {{ perf.wins }} |
+      ML Losses: {{ perf.losses }} |
+      Pushes: {{ perf.pushes }} |
+      Win%: {{ "%.1f"|format(perf.win_pct) }}%
+    {% endif %}
   </div>
 
   <script>
@@ -94,21 +110,41 @@ def load_predictions():
     fallback = os.path.join(OUTPUT_DIR, FALLBACK_FILE)
     csv_path = primary if os.path.exists(primary) else fallback
 
+    if not os.path.exists(csv_path):
+        # try to use the newest file in Output as last resort
+        files = sorted([os.path.join(OUTPUT_DIR, f) for f in os.listdir(OUTPUT_DIR) if f.startswith("Predictions_")])
+        csv_path = files[-1] if files else None
+
+    if not csv_path or not os.path.exists(csv_path):
+        # return empty df
+        df = pd.DataFrame(columns=["Sport","GameTime","Team1","Team2","MoneylinePick","Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"])
+        return df, "None"
+
     df = pd.read_csv(csv_path)
     df.columns = [c.strip() for c in df.columns]
 
     # Normalize column names
     if "Confidence(%)" in df.columns:
         df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
+    if "Edge" in df.columns:
+        # remove % if present, otherwise convert numeric
+        df["Edge"] = df["Edge"].astype(str).str.replace("%","",regex=False)
     if "Edge" not in df.columns:
         df["Edge"] = 0
+
+    # Ensure numeric types and safe defaults
+    df["Confidence"] = pd.to_numeric(df.get("Confidence", 0), errors="coerce").fillna(0)
+    df["Edge"] = pd.to_numeric(df.get("Edge", 0), errors="coerce").fillna(0.0)
+
     if "MoneylinePick" not in df.columns:
         df["MoneylinePick"] = "N/A"
-    if "Reason" not in df.columns:
-        df["Reason"] = "Model vs Market probability differential"
+    # Ensure emojis are strings
+    for col in ["LockEmoji","UpsetEmoji"]:
+        if col not in df.columns:
+            df[col] = ""
+        else:
+            df[col] = df[col].fillna("").astype(str)
 
-    df["Confidence"] = pd.to_numeric(df["Confidence"], errors="coerce").fillna(0)
-    df["Edge"] = df["Edge"].astype(str).str.replace("%","",regex=False).astype(float)
     df["Sport"] = df["Sport"].replace({
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "CFB",
@@ -118,6 +154,35 @@ def load_predictions():
     })
     return df, os.path.basename(csv_path)
 
+def compute_performance():
+    """
+    Read the latest Settled CSV if present (Predictions_*_Settled.csv),
+    otherwise try the latest Explained CSV and compute simple ML stats.
+    """
+    out = Path(OUTPUT_DIR)
+    settled_files = sorted(out.glob("Predictions_*_Settled.csv"))
+    explained_files = sorted(out.glob("Predictions_*_Explained.csv"))
+
+    path = settled_files[-1] if settled_files else (explained_files[-1] if explained_files else None)
+    if not path:
+        return {"total": 0, "settled": 0, "wins": 0, "losses": 0, "pushes": 0, "win_pct": 0.0}
+
+    df = pd.read_csv(path)
+    cols = [c.strip() for c in df.columns]
+
+    total = len(df)
+    # Settle-aware columns
+    ml_col = "ML_Result" if "ML_Result" in cols else None
+    settled_mask = df[ml_col].notna() & (df[ml_col].astype(str).str.strip() != "") if ml_col else pd.Series([False]*len(df))
+
+    settled = int(settled_mask.sum()) if len(df)>0 else 0
+    wins = int((df[ml_col].astype(str).str.upper() == "W").sum()) if ml_col else 0
+    losses = int((df[ml_col].astype(str).str.upper() == "L").sum()) if ml_col else 0
+    pushes = int((df[ml_col].astype(str).str.upper() == "PUSH").sum()) if ml_col else 0
+    win_pct = (wins / settled * 100.0) if settled>0 else 0.0
+
+    return {"total": total, "settled": settled, "wins": wins, "losses": losses, "pushes": pushes, "win_pct": win_pct}
+
 @app.route("/")
 def index():
     sport = request.args.get("sport","All")
@@ -126,9 +191,9 @@ def index():
     df, filename = load_predictions()
     sports = sorted(df["Sport"].dropna().unique())
 
-    # Determine Lock/UpSet emojis
-    df["LockEmoji"] = df.apply(lambda x: "🔒" if x["Confidence"] >= 101 else "", axis=1)
-    df["UpsetEmoji"] = df.apply(lambda x: "🚨" if "Upset" in str(x.get("Reason","")).lower() else "", axis=1)
+    # Determine Lock/UpSet emojis (fallback if CSV doesn't provide them)
+    df["LockEmoji"] = df.apply(lambda x: x.get("LockEmoji","") if str(x.get("LockEmoji","")).strip() else ("🔒" if float(x["Edge"]) >= 4 and float(x["Confidence"]) >= 60 else ""), axis=1)
+    df["UpsetEmoji"] = df.apply(lambda x: x.get("UpsetEmoji","") if str(x.get("UpsetEmoji","")).strip() else ("🚨" if float(x["Edge"]) >= 2 and (x.get("MoneylinePick") not in [x["Team1"], x["Team2"]])==False and float(x["Edge"])>0 and float(x["Confidence"])<50 else ""), axis=1)
 
     # Filter by sport
     if sport != "All":
@@ -140,7 +205,8 @@ def index():
         df = df.sort_values("Score", ascending=False).head(5)
 
     records = df.to_dict(orient="records")
-    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5)
+    perf = compute_performance()
+    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5, perf=perf)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
