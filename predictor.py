@@ -281,17 +281,15 @@ for sport in SPORTS:
             print("⚠️ Skipped event:", e)
             skipped += 1
 
-# write latest CSV as before
+# write latest CSV as before — but also dated copy for web compatibility
 if not rows:
     print("❌ No events processed")
 else:
     df = pd.DataFrame(rows)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    dated_file = OUT_DIR / f"Predictions_{now}_Explained.csv"
     df.to_csv(LATEST_FILE, index=False)
-    print(f"✅ Saved predictions to {LATEST_FILE} (rows={len(df)})")
-
-# optional: try to auto fetch results and calibrate
-try_fetch_results_and_mark_history()
-auto_calibrate()
-
-print(f"Done processed={processed} skipped={skipped}")
+    df.to_csv(dated_file, index=False)
+    unique_sports = sorted(df["Sport"].unique())
+    print(f"✅ Unique sports saved in CSV: {unique_sports}")
+    print(f"✅ Saved predictions to {dated_file} and {LATEST_FILE} (rows={len(df)})")
