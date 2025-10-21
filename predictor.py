@@ -2,16 +2,15 @@
 """
 predictor.py
 
-Updated: dynamic model scaling for visible Edges & Confidence spread.
+Phase 10: Adaptive Config Integration
 
-Changes:
-- Adds stronger ADJUST_FACTOR = 4.0 for wider Edge/Confidence separation
-- Keeps bias = 0.0 for balance
-- Maintains safe rounding, emojis, and CSV export
+Now dynamically loads tunable parameters from /Output/predictor_config.json,
+automatically updated by lockbox_feedback.py.
 """
 
 import os
 import math
+import json
 import requests
 import pandas as pd
 from datetime import datetime
@@ -20,161 +19,140 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ======= CONFIG =======
-API_KEY = os.getenv("ODDS_API_KEY")
-if not API_KEY:
-    print("⚠️ Warning: ODDS_API_KEY not set in environment. API calls will likely fail.")
+# ======= PATHS & CONFIG =======
+ROOT = Path(".")
+OUT_DIR = ROOT / "Output"
+OUT_DIR.mkdir(exist_ok=True)
+CONFIG_FILE = OUT_DIR / "predictor_config.json"
 
-SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
+# Default parameters (fallback)
+CONFIG_DEFAULTS = {
+    "ADJUST_FACTOR": 0.35,
+    "LOCK_EDGE_THRESHOLD": 0.5,
+    "LOCK_CONFIDENCE_THRESHOLD": 51.0,
+    "UPSET_EDGE_THRESHOLD": 0.3
+}
+
+def load_config():
+    """Load adaptive parameters from JSON (created by lockbox_feedback.py)."""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE) as f:
+                cfg = json.load(f)
+                print(f"🧠 Loaded adaptive config: {cfg}")
+                return {**CONFIG_DEFAULTS, **cfg}
+        except Exception as e:
+            print(f"⚠️ Failed to load config: {e}")
+    print("⚙️ Using default parameters.")
+    return CONFIG_DEFAULTS
+
+# Load parameters
+params = load_config()
+ADJUST_FACTOR = params["ADJUST_FACTOR"]
+LOCK_EDGE_THRESHOLD = params["LOCK_EDGE_THRESHOLD"]
+LOCK_CONFIDENCE_THRESHOLD = params["LOCK_CONFIDENCE_THRESHOLD"]
+UPSET_EDGE_THRESHOLD = params["UPSET_EDGE_THRESHOLD"]
+
+# ======= MODEL INPUT CONFIG =======
+API_KEY = os.getenv("ODDS_API_KEY")
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
+SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
 
-# ======= MODEL PARAMETERS =======
-MODEL_BIAS = 0.0
-ADJUST_FACTOR = 4.0           # stronger scaling for visible spread
-LOCK_EDGE_THRESHOLD = 1.0
-LOCK_CONFIDENCE_THRESHOLD = 60.0
-UPSET_EDGE_THRESHOLD = 0.5
+# ======= MODEL LOGIC =======
+def american_to_prob(odds):
+    if odds > 0:
+        return 100 / (odds + 100)
+    return -odds / (-odds + 100)
 
-OUT_DIR = Path("Output")
-OUT_DIR.mkdir(exist_ok=True)
-
-
-# ======= FUNCTIONS =======
-def implied_prob(odds):
+def fetch_odds(sport):
+    url = ODDS_API_URL.format(sport=sport)
     try:
-        odds = float(odds)
-        return 100 / (odds + 100) if odds > 0 else abs(odds) / (abs(odds) + 100)
-    except:
-        return None
+        r = requests.get(url, params={"apiKey": API_KEY, "regions": REGION, "markets": MARKETS})
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"⚠️ Error fetching odds for {sport}: {e}")
+        return []
 
+def calculate_model_probs(market_home_prob):
+    """Adjust the base market probability using ADJUST_FACTOR."""
+    return market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR
 
-def calculate_edge(model_prob, market_prob):
-    if model_prob is None or market_prob is None:
-        return None
-    return round((model_prob - market_prob) * 100, 2)
+def process_sport(sport):
+    data = fetch_odds(sport)
+    rows = []
+    for game in data:
+        teams = game.get("teams", [])
+        if len(teams) < 2:
+            continue
+        team1, team2 = teams[0], teams[1]
 
+        markets = {m["key"]: m for m in game.get("bookmakers", [{}])[0].get("markets", [])}
+        h2h = markets.get("h2h", {}).get("outcomes", [])
 
-def emoji_for_pick(lock=False, upset=False):
-    if lock:
-        return "🔒"
-    elif upset:
-        return "🚨"
-    return ""
+        if not h2h or len(h2h) < 2:
+            continue
 
+        home_team = game.get("home_team")
+        away_team = [t for t in teams if t != home_team][0]
 
-# ======= MAIN MODEL =======
-def run_predictor():
-    all_rows = []
-
-    for sport in SPORTS:
-        print(f"📊 Fetching {sport} odds...")
         try:
-            resp = requests.get(
-                ODDS_API_URL.format(sport=sport),
-                params={"apiKey": API_KEY, "regions": REGION, "markets": MARKETS}
-            )
-            data = resp.json()
-        except Exception as e:
-            print(f"Error fetching {sport} odds: {e}")
+            odds_home = next(o["price"] for o in h2h if o["name"] == home_team)
+            odds_away = next(o["price"] for o in h2h if o["name"] == away_team)
+        except StopIteration:
             continue
 
-        if not data:
-            print(f"No data for {sport}.")
-            continue
+        prob_home = american_to_prob(odds_home)
+        prob_away = american_to_prob(odds_away)
+        prob_sum = prob_home + prob_away
+        prob_home /= prob_sum
+        prob_away /= prob_sum
 
-        for game in data:
-            try:
-                teams = game.get("home_team"), game.get("away_team")
-                commence_time = game.get("commence_time")
-                bookmakers = game.get("bookmakers", [])
-                if not bookmakers:
-                    continue
+        model_home = calculate_model_probs(prob_home)
+        model_away = 1 - model_home
+        edge = abs(model_home - prob_home)
+        pick = home_team if model_home > 0.5 else away_team
+        confidence = max(model_home, model_away) * 100
 
-                book = bookmakers[0]
-                markets = {m["key"]: m for m in book.get("markets", [])}
-                h2h = markets.get("h2h", {}).get("outcomes", [])
-                spreads = markets.get("spreads", {}).get("outcomes", [])
-                totals = markets.get("totals", {}).get("outcomes", [])
+        lock = "🔒" if (edge >= LOCK_EDGE_THRESHOLD and confidence >= LOCK_CONFIDENCE_THRESHOLD) else ""
+        upset = "🚨" if (pick == away_team and edge >= UPSET_EDGE_THRESHOLD) else ""
 
-                if len(h2h) != 2:
-                    continue
+        rows.append({
+            "Sport": sport.replace("americanfootball_", "").upper(),
+            "GameTime": game.get("commence_time"),
+            "Team1": home_team,
+            "Team2": away_team,
+            "MoneylinePick": pick,
+            "Confidence": round(confidence, 2),
+            "Edge": round(edge, 2),
+            "ML": f"{home_team}:{odds_home} | {away_team}:{odds_away}",
+            "Reason": "Model vs Market probability differential",
+            "LockEmoji": lock,
+            "UpsetEmoji": upset
+        })
+    return rows
 
-                home_team = h2h[0]["name"]
-                away_team = h2h[1]["name"]
-                home_price = h2h[0]["price"]
-                away_price = h2h[1]["price"]
-
-                home_prob = implied_prob(home_price)
-                away_prob = implied_prob(away_price)
-                market_home_prob = home_prob / (home_prob + away_prob) if home_prob and away_prob else None
-
-                if market_home_prob is None:
-                    continue
-
-                # Model logic: amplify difference from 0.5
-                model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
-                model_p = max(0, min(1, model_p))
-
-                edge = calculate_edge(model_p, market_home_prob)
-                confidence = round(model_p * 100, 1)
-
-                # Determine lock/upset
-                lock = edge >= LOCK_EDGE_THRESHOLD and confidence >= LOCK_CONFIDENCE_THRESHOLD
-                upset = (market_home_prob < 0.5) and (edge >= UPSET_EDGE_THRESHOLD)
-                lock_emoji = emoji_for_pick(lock=lock)
-                upset_emoji = emoji_for_pick(upset=upset)
-
-                row = {
-                    "Sport": sport,
-                    "GameTime": commence_time,
-                    "Team1": home_team,
-                    "Team2": away_team,
-                    "MoneylinePick": home_team if model_p >= 0.5 else away_team,
-                    "Confidence": confidence,
-                    "Edge": edge,
-                    "ML": f"{home_team}:{home_price} | {away_team}:{away_price}",
-                    "ATS": " | ".join([f"{x['name']}:{x.get('point', '')}" for x in spreads]) if spreads else "",
-                    "OU": " / ".join([f"{x['name']}:{x.get('point', '')}" for x in totals]) if totals else "",
-                    "Reason": "Model vs Market probability differential",
-                    "LockEmoji": lock_emoji,
-                    "UpsetEmoji": upset_emoji,
-                }
-
-                all_rows.append(row)
-
-            except Exception as e:
-                print(f"Error parsing game entry: {e}")
+def main():
+    all_rows = []
+    for sport in SPORTS:
+        rows = process_sport(sport)
+        all_rows.extend(rows)
 
     if not all_rows:
-        print("⚠️ No predictions generated.")
+        print("No odds data returned.")
         return
 
     df = pd.DataFrame(all_rows)
-    df["Sport"] = df["Sport"].replace({
-        "americanfootball_nfl": "NFL",
-        "americanfootball_ncaaf": "CFB",
-        "basketball_nba": "NBA",
-        "baseball_mlb": "MLB",
-        "icehockey_nhl": "NHL"
-    })
-
-    out_file = OUT_DIR / f"Predictions_{datetime.now().strftime('%Y-%m-%d')}_Explained.csv"
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    out_file = OUT_DIR / f"Predictions_{date_str}_Explained.csv"
     df.to_csv(out_file, index=False)
     print(f"✅ Saved predictions to {out_file} (rows={len(df)})")
 
-    try:
-        edges = df["Edge"].astype(float)
-        confs = df["Confidence"].astype(float)
-        print("Edge summary (min / mean / max):", round(edges.min(), 2), "/", round(edges.mean(), 2), "/", round(edges.max(), 2))
-        print("Confidence summary (min / mean / max):", round(confs.min(), 2), "/", round(confs.mean(), 2), "/", round(confs.max(), 2))
-        locks_count = df["LockEmoji"].astype(str).map(lambda s: 1 if s.strip() else 0).sum()
-        upsets_count = df["UpsetEmoji"].astype(str).map(lambda s: 1 if s.strip() else 0).sum()
-        print(f"Locks: {locks_count} | Upsets: {upsets_count}")
-    except Exception as e:
-        print(f"Note: unable to compute summary stats: {e}")
-
+    lock_count = df["LockEmoji"].astype(bool).sum()
+    upset_count = df["UpsetEmoji"].astype(bool).sum()
+    print(f"Locks: {lock_count} | Upsets: {upset_count}")
 
 if __name__ == "__main__":
-    run_predictor()
+    main()
