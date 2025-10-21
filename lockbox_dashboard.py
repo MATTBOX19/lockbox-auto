@@ -2,100 +2,117 @@
 """
 lockbox_dashboard.py
 
-Phase 3: Top 5 Bets + Confidence Dashboard
+Phase 8: LockBox Live Dashboard Integration
 
-This script merges predictions, settled results, and learned metrics
-to produce:
-  - Top 5 bets by (Confidence × Edge)
-  - Model performance stats (Win %, ROI, Avg Edge/Conf)
-  - A JSON dashboard file consumed by LockBox Web
-
-Output:
-  /Output/dashboard.json
+Purpose:
+  - Extends the web interface (Flask) to show current model metrics
+  - Displays rolling performance data from /Output/metrics.json
+  - Adds auto-refresh and summary section below picks grid
 """
 
-import json
+from flask import Flask, render_template_string
 import pandas as pd
+import json
 from pathlib import Path
 from datetime import datetime
 
+app = Flask(__name__)
+
 ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
-LEARN_FILE = OUT_DIR / "metrics.json"
+METRICS_FILE = OUT_DIR / "metrics.json"
+PRED_FILE = sorted(OUT_DIR.glob("Predictions_*_Explained.csv"))[-1] if list(OUT_DIR.glob("Predictions_*_Explained.csv")) else None
 
-def load_latest_predictions():
-    """Load most recent predictions file."""
-    files = sorted(OUT_DIR.glob("Predictions_*_Explained.csv"))
-    if not files:
-        print("⚠️ No predictions CSV found.")
-        return pd.DataFrame()
-    latest = files[-1]
-    print(f"📘 Using {latest.name}")
-    df = pd.read_csv(latest)
-    # Normalize column names
-    df.columns = [c.strip() for c in df.columns]
-    return df
+TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>🔥 LockBox AI Dashboard 🔒</title>
+<meta http-equiv="refresh" content="60"> <!-- Auto-refresh every 60s -->
+<style>
+  body { background:#0d1117; color:#c9d1d9; font-family:Arial, sans-serif; margin:0; padding:0; }
+  h1 { color:#58a6ff; text-align:center; padding:20px 0; }
+  h2 { color:#e3b341; text-align:center; margin-top:10px; }
+  table { width:90%; margin:auto; border-collapse:collapse; margin-top:20px; }
+  th, td { border:1px solid #30363d; padding:8px 10px; text-align:center; }
+  th { background:#161b22; color:#79c0ff; }
+  .footer { color:#8b949e; font-size:0.85rem; text-align:center; margin:20px; }
+</style>
+</head>
+<body>
+  <h1>🔥 LockBox AI Dashboard 🔒</h1>
+  <h2>Model Performance Summary</h2>
+  {% if metrics %}
+    <table>
+      <tr>
+        <th>Date (UTC)</th><th>Win %</th><th>ROI %</th><th>Avg Edge</th><th>Avg Confidence</th><th>Games Settled</th>
+      </tr>
+      {% for m in metrics %}
+      <tr>
+        <td>{{ m.timestamp.split('T')[0] }}</td>
+        <td>{{ m.win_pct }}</td>
+        <td>{{ m.roi_percent }}</td>
+        <td>{{ m.avg_edge }}</td>
+        <td>{{ m.avg_confidence }}</td>
+        <td>{{ m.games_settled }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p style="text-align:center;color:#8b949e;">No metrics available yet. Run lockbox_learn.py first.</p>
+  {% endif %}
+
+  <h2>Current Predictions</h2>
+  {% if data is not none %}
+    <table>
+      <tr>
+        <th>Sport</th><th>Teams</th><th>Pick</th><th>Edge</th><th>Confidence</th><th>Reason</th>
+      </tr>
+      {% for row in data %}
+      <tr>
+        <td>{{ row.Sport }}</td>
+        <td>{{ row.Team1 }} vs {{ row.Team2 }}</td>
+        <td>{{ row.MoneylinePick }}</td>
+        <td>{{ "%.2f"|format(row.Edge) }}</td>
+        <td>{{ "%.1f"|format(row.Confidence) }}</td>
+        <td>{{ row.Reason }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p style="text-align:center;color:#8b949e;">No current predictions available.</p>
+  {% endif %}
+
+  <div class="footer">
+    Updated: {{ updated }} | Auto-refresh every 60s
+  </div>
+</body>
+</html>
+"""
 
 def load_metrics():
-    """Load learning metrics if available."""
-    if LEARN_FILE.exists():
-        with open(LEARN_FILE) as f:
-            return json.load(f)
-    return {"total_picks": 0, "wins": 0, "roi": 0.0}
+    if METRICS_FILE.exists():
+        try:
+            with open(METRICS_FILE) as f:
+                metrics = json.load(f)
+                if isinstance(metrics, list):
+                    return list(reversed(metrics[-10:]))  # last 10 sessions
+        except Exception as e:
+            print(f"Error loading metrics: {e}")
+    return []
 
-def compute_top5(df):
-    """Compute Top 5 bets by (Edge × Confidence)."""
-    if df.empty or "Edge" not in df or "Confidence" not in df:
-        return []
-    df["score"] = df["Edge"].astype(float) * df["Confidence"].astype(float)
-    top5 = (
-        df.sort_values("score", ascending=False)
-          .head(5)
-          .to_dict(orient="records")
-    )
-    return [
-        {
-            "Sport": r.get("Sport", ""),
-            "Teams": f"{r.get('Team1', '')} vs {r.get('Team2', '')}",
-            "Pick": r.get("MoneylinePick", ""),
-            "Confidence": r.get("Confidence", ""),
-            "Edge": r.get("Edge", ""),
-            "LockEmoji": r.get("LockEmoji", ""),
-            "UpsetEmoji": r.get("UpsetEmoji", ""),
-        }
-        for r in top5
-    ]
-
-def build_dashboard():
-    df = load_latest_predictions()
+@app.route("/")
+def dashboard():
     metrics = load_metrics()
-    if df.empty:
-        print("❌ No data to build dashboard.")
-        return
+    if PRED_FILE and PRED_FILE.exists():
+        df = pd.read_csv(PRED_FILE)
+        data = df.to_dict(orient="records")
+        updated = PRED_FILE.name
+    else:
+        data, updated = None, "N/A"
 
-    top5 = compute_top5(df)
-    avg_edge = round(df["Edge"].astype(float).mean(), 2) if "Edge" in df else 0
-    avg_conf = round(df["Confidence"].astype(float).mean(), 2) if "Confidence" in df else 0
-    total = len(df)
-    locks = df["LockEmoji"].astype(str).str.strip().astype(bool).sum() if "LockEmoji" in df else 0
-
-    dashboard = {
-        "updated": datetime.utcnow().isoformat(),
-        "summary": {
-            "total_predictions": total,
-            "locks": int(locks),
-            "avg_edge": avg_edge,
-            "avg_confidence": avg_conf,
-        },
-        "metrics": metrics,
-        "top5_bets": top5,
-    }
-
-    out_path = OUT_DIR / "dashboard.json"
-    with open(out_path, "w") as f:
-        json.dump(dashboard, f, indent=2)
-
-    print(f"✅ Dashboard written to {out_path} (Top5={len(top5)})")
+    return render_template_string(TEMPLATE, metrics=metrics, data=data, updated=updated)
 
 if __name__ == "__main__":
-    build_dashboard()
+    app.run(host="0.0.0.0", port=10001)
