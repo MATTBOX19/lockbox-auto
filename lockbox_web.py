@@ -150,16 +150,18 @@ def load_predictions():
     df["LockEmoji"] = df.get("LockEmoji", "").fillna("").astype(str)
     df["UpsetEmoji"] = df.get("UpsetEmoji", "").fillna("").astype(str)
 
-    # ✅ Include College Football (NCAAF)
+    # ✅ Include College Football (NCAAF + NCAA)
     df["Sport"] = df["Sport"].replace({
-    "americanfootball_nfl": "NFL",
-    "americanfootball_ncaaf": "CFB",
-    "americanfootball_ncaa": "CFB",   
-    "basketball_nba": "NBA",
-    "baseball_mlb": "MLB",
-    "icehockey_nhl": "NHL"
-        })
+        "americanfootball_nfl": "NFL",
+        "americanfootball_ncaaf": "CFB",
+        "americanfootball_ncaa": "CFB",
+        "basketball_nba": "NBA",
+        "baseball_mlb": "MLB",
+        "icehockey_nhl": "NHL"
+    })
 
+    # 🔍 Debug: print all unique sports found
+    print("✅ Unique sports found in CSV:", df["Sport"].unique().tolist())
 
     return df, os.path.basename(csv_path)
 
