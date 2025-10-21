@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-predictor.py — Phase 10c (fixed)
-Now robustly finds the 'h2h' market across bookmakers and logs skips.
+predictor.py — Phase 10c (debug-friendly, writes Predictions_latest_Explained.csv)
 """
 
 import os
-import math
 import json
 import requests
 import pandas as pd
@@ -15,7 +13,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ======= PATHS & CONFIG =======
 ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
 OUT_DIR.mkdir(exist_ok=True)
@@ -46,36 +43,42 @@ LOCK_EDGE_THRESHOLD = params["LOCK_EDGE_THRESHOLD"]
 LOCK_CONFIDENCE_THRESHOLD = params["LOCK_CONFIDENCE_THRESHOLD"]
 UPSET_EDGE_THRESHOLD = params["UPSET_EDGE_THRESHOLD"]
 
-# ======= API CONFIG =======
 API_KEY = os.getenv("ODDS_API_KEY")
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
 SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
 
-# ======= UTILS =======
-def american_to_prob(odds):
-    if odds is None:
+def odds_to_prob(price):
+    """Convert API price (may be decimal odds or American) to implied probability (0..1).
+       Heuristic: negative values -> American; positive values:
+         - if <=1: invalid
+         - if between 1.01 and 10 -> treat as decimal (1/odds)
+         - otherwise treat as American (+150 etc) unless negative
+    """
+    if price is None:
         return None
     try:
-        odds = float(odds)
-        if odds > 0:
-            return 100 / (odds + 100)
-        return -odds / (-odds + 100)
-    except:
+        o = float(price)
+    except Exception:
         return None
 
-# friendly sport mapping
-SPORT_MAP = {
-    "americanfootball_nfl": "NFL",
-    "americanfootball_ncaaf": "CFB",
-    "americanfootball_ncaa": "CFB",
-    "basketball_nba": "NBA",
-    "baseball_mlb": "MLB",
-    "icehockey_nhl": "NHL"
-}
+    # American: negative numbers are american; very large absolute values probably american too
+    if o <= 0 or abs(o) >= 10:
+        # american
+        try:
+            if o > 0:
+                return 100.0 / (o + 100.0)
+            else:
+                return -o / (-o + 100.0)
+        except Exception:
+            return None
+    else:
+        # decimal odds (typical: 1.01 .. 10)
+        if o <= 1.01:
+            return None
+        return 1.0 / o
 
-# ======= FETCH ODDS =======
 def fetch_odds(sport):
     url = ODDS_API_URL.format(sport=sport)
     params = {"apiKey": API_KEY, "regions": REGION, "markets": MARKETS, "oddsFormat": "american"}
@@ -91,112 +94,150 @@ def fetch_odds(sport):
         print(f"⚠️ Error fetching {sport}: {e}")
         return []
 
-def find_h2h_market(bookmakers):
-    """
-    Search all bookmakers for a market with key == 'h2h'.
-    Return the market dict and the bookmaker key/title used, or (None, None).
-    """
-    for b in bookmakers or []:
-        for m in b.get("markets", []) or []:
-            if m.get("key") == "h2h":
-                return m, b.get("key") or b.get("title")
-    return None, None
+# mapper to friendly sport code
+SPORT_MAP = {
+    "americanfootball_nfl": "NFL",
+    "americanfootball_ncaaf": "CFB",
+    "basketball_nba": "NBA",
+    "baseball_mlb": "MLB",
+    "icehockey_nhl": "NHL"
+}
 
-# ======= MAIN LOGIC =======
 rows = []
+processed = 0
 skipped = 0
-events_processed = 0
-
 for sport in SPORTS:
     events = fetch_odds(sport)
     for ev in events:
+        processed += 1
+        ev_id = ev.get("id", "<no-id>")
         try:
-            # Use the API's home/away fields first (v4)
-            home = ev.get("home_team") or ev.get("home") or ev.get("homeTeam")
-            away = ev.get("away_team") or ev.get("away") or ev.get("awayTeam")
-            if not home or not away:
-                # Try to pull teams from outcomes later, but skip if missing
-                print(f"⚠️ Skipping event (no home/away): id={ev.get('id')}")
+            # try to find available markets per bookmaker
+            bks = ev.get("bookmakers", []) or []
+            if not bks:
+                print(f"⚠️ Skipping event (no bookmakers) id={ev_id}")
                 skipped += 1
                 continue
 
-            # find an h2h market across available bookmakers
-            market, bookmaker_key = find_h2h_market(ev.get("bookmakers", []))
-            if not market:
-                # log available market keys for debugging
-                available = []
-                for b in ev.get("bookmakers", []):
-                    available.extend([m.get("key") for m in b.get("markets", []) if m.get("key")])
-                print(f"⚠️ Skipping event (no h2h market) id={ev.get('id')} available_markets={sorted(set(available))}")
+            # pick first bookmaker that has markets (prefer draftkings if present)
+            bookmaker = None
+            for b in bks:
+                if b.get("markets"):
+                    bookmaker = b
+                    if b.get("key") == "draftkings":
+                        break
+            if not bookmaker:
+                print(f"⚠️ Skipping event (no markets) id={ev_id}")
                 skipped += 1
                 continue
 
-            outcomes = market.get("outcomes") or []
-            # moneyline h2h expects two outcomes
+            available_markets = [m.get("key") for m in bookmaker.get("markets", [])]
+            # prefer h2h market
+            h2h_market = None
+            spreads_market = None
+            totals_market = None
+            for m in bookmaker.get("markets", []):
+                if m.get("key") == "h2h":
+                    h2h_market = m
+                if m.get("key") == "spreads":
+                    spreads_market = m
+                if m.get("key") == "totals":
+                    totals_market = m
+
+            if not h2h_market:
+                print(f"⚠️ Skipping event (no h2h market) id={ev_id} available_markets={available_markets}")
+                skipped += 1
+                continue
+
+            outcomes = h2h_market.get("outcomes", []) or []
             if len(outcomes) != 2:
-                print(f"⚠️ Skipping event (h2h outcomes != 2) id={ev.get('id')} outcomes_len={len(outcomes)}")
+                print(f"⚠️ Skipping event (unexpected h2h outcomes) id={ev_id} len_outcomes={len(outcomes)}")
                 skipped += 1
                 continue
 
-            # outcome ordering may not follow home/away; we'll use names directly
-            team1 = outcomes[0].get("name")
-            team2 = outcomes[1].get("name")
-            odds1 = outcomes[0].get("price")
-            odds2 = outcomes[1].get("price")
+            team1_name = outcomes[0].get("name")
+            team2_name = outcomes[1].get("name")
+            price1 = outcomes[0].get("price")
+            price2 = outcomes[1].get("price")
 
-            p1 = american_to_prob(odds1)
-            p2 = american_to_prob(odds2)
+            p1 = odds_to_prob(price1)
+            p2 = odds_to_prob(price2)
             if p1 is None or p2 is None:
-                print(f"⚠️ Skipping event (invalid odds) id={ev.get('id')} odds1={odds1} odds2={odds2}")
+                print(f"⚠️ Skipping event (bad prices) id={ev_id} prices=({price1},{price2})")
                 skipped += 1
                 continue
 
-            # normalize probabilities to sum to 1
+            # normalize probs
             total = p1 + p2
             if total <= 0:
-                print(f"⚠️ Skipping event (bad probs) id={ev.get('id')} p1={p1} p2={p2}")
+                print(f"⚠️ Skipping event (invalid total probs) id={ev_id} total={total}")
                 skipped += 1
                 continue
-            p1, p2 = p1 / total, p2 / total
+            p1n, p2n = p1 / total, p2 / total
 
-            implied_edge = abs(p1 - p2) * 100 * ADJUST_FACTOR
-            confidence = max(p1, p2) * 100
-            pick = team1 if p1 > p2 else team2
+            implied_edge = abs(p1n - p2n) * 100.0 * ADJUST_FACTOR  # numeric small float (matches previous flow)
+            confidence = max(p1n, p2n) * 100.0
+            pick = team1_name if p1n > p2n else team2_name
 
-            sport_friendly = SPORT_MAP.get(sport, sport.split("_")[-1].upper())
+            # build ML/ATS/OU strings if possible
+            ml_str = f"{team1_name}:{price1} | {team2_name}:{price2}"
+            ats_str = ""
+            ou_str = ""
+            if spreads_market:
+                try:
+                    s_out = spreads_market.get("outcomes", [])
+                    # join spread lines
+                    ats_parts = []
+                    for o in s_out:
+                        n = o.get("name"); sp = o.get("point"); ats_parts.append(f"{n}:{sp:+}")
+                    ats_str = " | ".join(ats_parts)
+                except Exception:
+                    pass
+            if totals_market:
+                try:
+                    t_out = totals_market.get("outcomes", [])
+                    # typical totals markets include labels like Over/Under
+                    tot_parts = []
+                    for o in t_out:
+                        if "name" in o and "point" in o:
+                            tot_parts.append(f"{o.get('name')}: {o.get('point')}")
+                    ou_str = " / ".join(tot_parts) if tot_parts else ""
+                except Exception:
+                    pass
+
+            # friendly sport label
+            sport_label = SPORT_MAP.get(sport, sport.split("_")[-1].upper())
 
             rows.append({
-                "Sport": sport_friendly,
-                "SportRaw": sport,
+                "Sport": sport_label,
                 "GameTime": ev.get("commence_time", ""),
-                "Team1": team1,
-                "Team2": team2,
-                "HomeTeam": home,
-                "AwayTeam": away,
-                "Bookmaker": bookmaker_key or "",
+                "Team1": team1_name,
+                "Team2": team2_name,
                 "MoneylinePick": pick,
-                "Confidence(%)": round(confidence, 1),
-                "Confidence": round(confidence, 1),
-                "Edge": f"{implied_edge:.2f}%",
-                "EdgeValue": implied_edge,
-                "LockEmoji": "🔒" if (implied_edge > LOCK_EDGE_THRESHOLD and confidence > LOCK_CONFIDENCE_THRESHOLD) else "",
-                "UpsetEmoji": "💥" if (implied_edge > UPSET_EDGE_THRESHOLD and confidence < 50) else "",
-                "Reason": "Model vs Market probability differential"
+                "Confidence": round(confidence, 2),
+                "Edge": round(implied_edge, 4),
+                "ML": ml_str,
+                "ATS": ats_str,
+                "OU": ou_str,
+                "Reason": "Model vs Market probability differential",
+                "LockEmoji": "🔒" if (implied_edge >= LOCK_EDGE_THRESHOLD and confidence >= LOCK_CONFIDENCE_THRESHOLD) else "",
+                "UpsetEmoji": "💥" if (implied_edge >= UPSET_EDGE_THRESHOLD and confidence < 50.0) else ""
             })
-            events_processed += 1
 
         except Exception as e:
-            print(f"⚠️ Skipped event due to exception: {e}")
+            print(f"⚠️ Skipped event (exception) id={ev_id}: {e}")
             skipped += 1
 
-# ======= OUTPUT =======
+# Output
 if not rows:
     print("❌ No events processed successfully.")
 else:
     df = pd.DataFrame(rows)
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     out_file = OUT_DIR / f"Predictions_{date_str}_Explained.csv"
+    latest_file = OUT_DIR / "Predictions_latest_Explained.csv"
     df.to_csv(out_file, index=False)
+    df.to_csv(latest_file, index=False)
     unique_sports = sorted(df["Sport"].dropna().unique().tolist())
-    print("✅ Unique sports saved in CSV:", unique_sports)
-    print(f"✅ Saved predictions to {out_file} (rows={len(df)}, processed={events_processed}, skipped={skipped})")
+    print(f"✅ Unique sports saved in CSV: {unique_sports}")
+    print(f"✅ Saved predictions to {out_file} and {latest_file} (rows={len(df)}, processed={processed}, skipped={skipped})")
