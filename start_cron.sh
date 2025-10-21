@@ -8,7 +8,7 @@ while true; do
 
   # re-add the Git remote each run (Render doesn’t persist remotes)
   git remote remove origin 2>/dev/null || true
-  git remote add origin https://github.com/MATTBOX19/lockbox-auto.git
+  git remote add origin https://$GITHUB_TOKEN@github.com/MATTBOX19/lockbox-auto.git
 
   # commit and push new predictions
   git add Output/*.csv || true
