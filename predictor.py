@@ -1,18 +1,14 @@
+cat > predictor.py <<'PY'
 #!/usr/bin/env python3
 """
-predictor.py
+predictor.py — odds conversion fix
 
-Updated: dynamic model scaling to produce varied Edge values.
-
-This version:
-- Removes flat MODEL_BIAS (set to 0.0)
-- Uses a larger ADJUST_FACTOR to amplify market deviations from 0.5
-- Forces LockEmoji/UpsetEmoji to empty strings when not set (prevents NaN dtype)
-- Prints a short Edge/Confidence summary after CSV is written
-
-Keep ODDS_API_KEY in env (do not hardcode).
+- Converts bookmaker 'price' values correctly (decimal odds or American odds)
+- Normalizes market probabilities (vig removal)
+- Computes model probability, Edge (percentage points), Confidence (0..100)
+- Outputs Output/Predictions_YYYY-MM-DD_Explained.csv with numeric Edge & Confidence
+- Lock/Upset logic uses configurable thresholds via constants below
 """
-
 import os
 import math
 import requests
@@ -28,36 +24,65 @@ API_KEY = os.getenv("ODDS_API_KEY")
 if not API_KEY:
     print("⚠️ Warning: ODDS_API_KEY not set in environment. API calls will likely fail.")
 
-SPORTS = ["americanfootball_nfl", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
+SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
-
-# MODEL TUNABLES (changed per request)
-MODEL_BIAS = 0.0               # removed flat +2% bias
-ADJUST_FACTOR = 0.15           # increase to amplify deviations from 0.5
-LOCK_EDGE_THRESHOLD = 4.0
-LOCK_CONFIDENCE_THRESHOLD = 60.0
-UPSET_EDGE_THRESHOLD = 2.0
-
-# Output directory
 OUT_DIR = Path("Output")
 OUT_DIR.mkdir(exist_ok=True)
 
+# MODEL TUNABLES (adjust in env if desired)
+MODEL_BIAS = float(os.getenv("MODEL_BIAS", "0.0"))          # absolute probability add-on (0.02 = +2%)
+ADJUST_FACTOR = float(os.getenv("ADJUST_FACTOR", "0.35"))   # amplifies market deviation from 0.5
+LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "0.5"))
+LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "51.0"))
+UPSET_EDGE_THRESHOLD = float(os.getenv("UPSET_EDGE_THRESHOLD", "0.3"))
+
 # ======= HELPERS =======
-def american_odds_to_prob(odds):
-    """Convert American odds to implied probability (0..1)."""
-    try:
-        odds = float(odds)
-    except Exception:
+def odds_price_to_prob(price):
+    """
+    Convert bookmaker price to implied probability (0..1).
+    Handles:
+    - Decimal odds (e.g. 1.59) -> prob = 1 / price
+    - American odds (e.g. +150, -120) -> classic conversion
+    - If value already looks like a probability (0 < price < 1) return as-is
+    Returns None if conversion not possible.
+    """
+    if price is None:
         return None
-    if odds > 0:
-        return 100.0 / (odds + 100.0)
-    else:
-        return abs(odds) / (abs(odds) + 100.0)
+    try:
+        p = float(price)
+    except Exception:
+        # maybe a string like '+150' or '-120' with plus sign
+        try:
+            p = float(str(price).strip().replace("+",""))
+        except Exception:
+            return None
+
+    # If number is in 0..1 assume it's already a probability
+    if 0.0 < p <= 1.0:
+        return p
+
+    # American odds are typically absolute value > 100 (e.g., +150 or -120)
+    if abs(p) >= 100.0:
+        # American format
+        if p > 0:
+            return 100.0 / (p + 100.0)
+        else:
+            return abs(p) / (abs(p) + 100.0)
+
+    # Decimal odds are typically >= 1.01 (e.g., 1.59)
+    if p >= 1.01:
+        try:
+            return 1.0 / p
+        except Exception:
+            return None
+
+    # Fallback: cannot parse
+    return None
 
 def normalize_market_probs(home_prob, away_prob):
-    """Remove vig by rescaling implied probs to sum to 1."""
+    """Rescale two implied probs to remove vig so they sum to 1."""
     if home_prob is None and away_prob is None:
         return None, None
     if home_prob is None:
@@ -70,10 +95,13 @@ def normalize_market_probs(home_prob, away_prob):
     return home_prob / total, away_prob / total
 
 def clamp(x, lo=0.001, hi=0.999):
-    return max(lo, min(hi, x))
+    try:
+        return max(lo, min(hi, float(x)))
+    except Exception:
+        return lo
 
 def calculate_edge(model_prob, market_prob):
-    """Return Edge as percentage float (e.g. 3.25)."""
+    """Edge as percentage points, e.g. 2.21"""
     if model_prob is None or market_prob is None:
         return None
     return round((model_prob - market_prob) * 100.0, 2)
@@ -81,8 +109,7 @@ def calculate_edge(model_prob, market_prob):
 def compute_model_home_prob(market_home_prob):
     """
     Dynamic model:
-      model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
-    This amplifies favorites and underdogs proportionally to their distance from 0.5.
+    model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
     """
     if market_home_prob is None:
         return 0.52
@@ -161,8 +188,9 @@ def run_predictor():
 
                 ml_home_raw, ml_away_raw, spread_text, total_text = safe_extract_ml_spread_total(bookmakers, home_team, away_team)
 
-                raw_home_prob = american_odds_to_prob(ml_home_raw) if ml_home_raw is not None else None
-                raw_away_prob = american_odds_to_prob(ml_away_raw) if ml_away_raw is not None else None
+                # Convert raw price to implied probabilities (0..1)
+                raw_home_prob = odds_price_to_prob(ml_home_raw) if ml_home_raw is not None else None
+                raw_away_prob = odds_price_to_prob(ml_away_raw) if ml_away_raw is not None else None
 
                 market_home_prob, market_away_prob = normalize_market_probs(raw_home_prob, raw_away_prob)
 
@@ -196,7 +224,6 @@ def run_predictor():
                 except Exception:
                     ml_display = ""
 
-                # Ensure emojis are explicit strings ("" when not set) to avoid NaN dtype
                 lock_emoji = "🔒" if is_lock else ""
                 upset_emoji = "🚨" if is_upset else ""
 
@@ -234,12 +261,11 @@ def run_predictor():
         "icehockey_nhl": "NHL"
     })
 
-    # Save CSV
     out_file = OUT_DIR / f"Predictions_{datetime.now().strftime('%Y-%m-%d')}_Explained.csv"
     df.to_csv(out_file, index=False)
     print(f"✅ Saved predictions to {out_file} (rows={len(df)})")
 
-    # Print quick stats summary to help tune thresholds
+    # Print quick stats
     try:
         edges = df["Edge"].astype(float)
         confs = df["Confidence"].astype(float)
@@ -253,3 +279,4 @@ def run_predictor():
 
 if __name__ == "__main__":
     run_predictor()
+PY
