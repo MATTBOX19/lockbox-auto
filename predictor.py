@@ -2,18 +2,15 @@
 """
 predictor.py
 
-Produces: Output/Predictions_YYYY-MM-DD_Explained.csv
+Updated: dynamic model scaling to produce varied Edge values.
 
-Purpose:
-- Fetch odds from The Odds API (ODDS_API_KEY from env)
-- Compute market implied probabilities (vig removed)
-- Compute a placeholder model probability (tunable)
-- Compute Edge = (model_prob - market_prob) * 100 (numeric)
-- Compute Confidence (numeric 0-100 for the chosen pick)
-- Add LockEmoji / UpsetEmoji using configurable thresholds
-- Output a CSV with a stable schema for the web UI
+This version:
+- Removes flat MODEL_BIAS (set to 0.0)
+- Uses a larger ADJUST_FACTOR to amplify market deviations from 0.5
+- Forces LockEmoji/UpsetEmoji to empty strings when not set (prevents NaN dtype)
+- Prints a short Edge/Confidence summary after CSV is written
 
-NOTE: Replace compute_model_home_prob with your production model when ready.
+Keep ODDS_API_KEY in env (do not hardcode).
 """
 
 import os
@@ -36,12 +33,12 @@ REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
 
-# MODEL TUNABLES (adjust these to tune Edge/Lock behavior)
-MODEL_BIAS = 0.02              # add this much absolute probability to model vs market (0.02 = 2%)
-ADJUST_FACTOR = 0.05           # scale factor for how much model exaggerates market distance from 0.5
-LOCK_EDGE_THRESHOLD = 4.0      # Edge (percent) required to consider a "Lock"
-LOCK_CONFIDENCE_THRESHOLD = 60.0  # Confidence (%) required to consider a "Lock"
-UPSET_EDGE_THRESHOLD = 2.0     # Edge (percent) required to consider an "Upset" if pick is market underdog
+# MODEL TUNABLES (changed per request)
+MODEL_BIAS = 0.0               # removed flat +2% bias
+ADJUST_FACTOR = 0.15           # increase to amplify deviations from 0.5
+LOCK_EDGE_THRESHOLD = 4.0
+LOCK_CONFIDENCE_THRESHOLD = 60.0
+UPSET_EDGE_THRESHOLD = 2.0
 
 # Output directory
 OUT_DIR = Path("Output")
@@ -49,32 +46,24 @@ OUT_DIR.mkdir(exist_ok=True)
 
 # ======= HELPERS =======
 def american_odds_to_prob(odds):
-    """
-    Convert American moneyline odds (e.g. -150, +130) to implied probability (0..1).
-    Returns None on failure.
-    """
+    """Convert American odds to implied probability (0..1)."""
     try:
         odds = float(odds)
     except Exception:
         return None
-
     if odds > 0:
         return 100.0 / (odds + 100.0)
     else:
         return abs(odds) / (abs(odds) + 100.0)
 
 def normalize_market_probs(home_prob, away_prob):
-    """
-    Remove bookmaker vig by scaling the raw implied probs to sum to 1.
-    If one side missing, return the raw prob and 1 - prob as fallback.
-    """
+    """Remove vig by rescaling implied probs to sum to 1."""
     if home_prob is None and away_prob is None:
         return None, None
     if home_prob is None:
         return None, 1.0
     if away_prob is None:
         return 1.0, None
-
     total = home_prob + away_prob
     if total <= 0:
         return None, None
@@ -84,33 +73,24 @@ def clamp(x, lo=0.001, hi=0.999):
     return max(lo, min(hi, x))
 
 def calculate_edge(model_prob, market_prob):
-    """
-    Edge returned as percent float (e.g. 3.25 => 3.25%).
-    """
+    """Return Edge as percentage float (e.g. 3.25)."""
     if model_prob is None or market_prob is None:
         return None
     return round((model_prob - market_prob) * 100.0, 2)
 
 def compute_model_home_prob(market_home_prob):
     """
-    Placeholder model logic. This intentionally:
-      - starts from market_home_prob (vig-removed)
-      - applies a small bias and a small exaggeration based on distance from 0.5
-    Replace this function with your production model when ready.
+    Dynamic model:
+      model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
+    This amplifies favorites and underdogs proportionally to their distance from 0.5.
     """
     if market_home_prob is None:
-        # fallback neutral
         return 0.52
-
-    adj = ADJUST_FACTOR * (market_home_prob - 0.5)
-    model_p = market_home_prob + MODEL_BIAS + adj
+    model_p = market_home_prob + (market_home_prob - 0.5) * ADJUST_FACTOR + MODEL_BIAS
     return clamp(model_p, lo=0.01, hi=0.99)
 
 def safe_extract_ml_spread_total(bookmakers, home_team, away_team):
-    """
-    Extract the most-likely ML for home/away and simple spread/total text for display.
-    Returns (ml_home, ml_away, spread_text, total_text)
-    """
+    """Extract MLs and simple text for spread/total display from first bookmaker if possible."""
     ml_home = ml_away = None
     spread_text = ""
     total_text = ""
@@ -130,7 +110,6 @@ def safe_extract_ml_spread_total(bookmakers, home_team, away_team):
                         ml_home = price
                     elif name == away_team:
                         ml_away = price
-                # continue searching spreads/totals too
             elif key == "spreads":
                 parts = []
                 for o in outcomes:
@@ -198,13 +177,14 @@ def run_predictor():
                 edge = calculate_edge(pick_model_prob, pick_market_prob) if pick_market_prob is not None else None
                 confidence = round(pick_model_prob * 100.0, 1) if pick_model_prob is not None else 0.0
 
+                # lock/upset detection
                 is_lock = False
                 is_upset = False
                 try:
-                    if edge is not None and confidence is not None:
+                    if edge is not None:
                         if edge >= LOCK_EDGE_THRESHOLD and confidence >= LOCK_CONFIDENCE_THRESHOLD:
                             is_lock = True
-                        if (pick_market_prob is not None and pick_market_prob < 0.5) and (edge is not None and edge >= UPSET_EDGE_THRESHOLD):
+                        if (pick_market_prob is not None and pick_market_prob < 0.5) and (edge >= UPSET_EDGE_THRESHOLD):
                             is_upset = True
                 except Exception:
                     pass
@@ -216,20 +196,24 @@ def run_predictor():
                 except Exception:
                     ml_display = ""
 
+                # Ensure emojis are explicit strings ("" when not set) to avoid NaN dtype
+                lock_emoji = "🔒" if is_lock else ""
+                upset_emoji = "🚨" if is_upset else ""
+
                 row = {
                     "Sport": sport,
                     "GameTime": commence,
                     "Team1": home_team,
                     "Team2": away_team,
                     "MoneylinePick": pick_team,
-                    "Confidence": confidence,    # numeric 0..100
-                    "Edge": edge if edge is not None else 0.0,  # numeric percent
+                    "Confidence": confidence,
+                    "Edge": edge if edge is not None else 0.0,
                     "ML": ml_display,
                     "ATS": spread_text if spread_text else "",
                     "OU": total_text if total_text else "",
                     "Reason": "Model vs Market probability differential",
-                    "LockEmoji": "🔒" if is_lock else "",
-                    "UpsetEmoji": "🚨" if is_upset else "",
+                    "LockEmoji": lock_emoji,
+                    "UpsetEmoji": upset_emoji,
                 }
 
                 all_rows.append(row)
@@ -250,9 +234,22 @@ def run_predictor():
         "icehockey_nhl": "NHL"
     })
 
+    # Save CSV
     out_file = OUT_DIR / f"Predictions_{datetime.now().strftime('%Y-%m-%d')}_Explained.csv"
     df.to_csv(out_file, index=False)
     print(f"✅ Saved predictions to {out_file} (rows={len(df)})")
+
+    # Print quick stats summary to help tune thresholds
+    try:
+        edges = df["Edge"].astype(float)
+        confs = df["Confidence"].astype(float)
+        print("Edge summary (min / mean / max):", round(edges.min(), 2), "/", round(edges.mean(), 2), "/", round(edges.max(), 2))
+        print("Confidence summary (min / mean / max):", round(confs.min(), 2), "/", round(confs.mean(), 2), "/", round(confs.max(), 2))
+        locks_count = df["LockEmoji"].astype(str).map(lambda s: 1 if s.strip() else 0).sum()
+        upsets_count = df["UpsetEmoji"].astype(str).map(lambda s: 1 if s.strip() else 0).sum()
+        print(f"Locks: {locks_count} | Upsets: {upsets_count}")
+    except Exception as e:
+        print(f"Note: unable to compute summary stats: {e}")
 
 if __name__ == "__main__":
     run_predictor()
