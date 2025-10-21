@@ -63,16 +63,16 @@ select { background:#161b22; color:#c9d1d9; border:1px solid #30363d; padding:6p
 {% for row in data %}
 <div class="card">
 <div class="game-title">
-{{ row.Team1 or row.AwayTeam }} vs {{ row.Team2 or row.HomeTeam }}
-<span class="badge">{{ row.Sport }}</span>
-{% if row.LockEmoji %}<span class="lock">{{ row.LockEmoji }}</span>{% endif %}
-{% if row.UpsetEmoji %}<span class="upset">{{ row.UpsetEmoji }}</span>{% endif %}
+{{ row.team1 or row.awayteam }} vs {{ row.team2 or row.hometeam }}
+<span class="badge">{{ row.sport }}</span>
+{% if row.lockemoji %}<span class="lock">{{ row.lockemoji }}</span>{% endif %}
+{% if row.upsetemoji %}<span class="upset">{{ row.upsetemoji }}</span>{% endif %}
 </div>
-<div class="meta">{{ row.GameTime }}</div>
-<div class="pick">{{ row.MoneylinePick }}</div>
+<div class="meta">{{ row.gametime }}</div>
+<div class="pick">{{ row.moneylinepick }}</div>
 <div class="meta">
-Confidence: {{ "%.1f"|format(row.Confidence) }} % | Edge: {{ "%.2f"|format(row.Edge) }} %<br>
-{{ row.Reason }}
+Confidence: {{ "%.1f"|format(row.confidence) }} % | Edge: {{ "%.2f"|format(row.edge) }} %<br>
+{{ row.reason }}
 </div>
 </div>
 {% endfor %}
@@ -105,17 +105,16 @@ def load_predictions():
         return pd.DataFrame(), "NO_FILE"
 
     df = pd.read_csv(csv_path)
-    df.columns = [c.strip().lower() for c in df.columns]  # ✅ normalize lowercase
+    df.columns = [c.strip().lower() for c in df.columns]  # normalize lowercase
+
     if "sport" not in df.columns:
-        print("⚠️ No 'Sport' column found. Columns:", df.columns.tolist())
+        print("⚠️ No 'sport' column found. Columns:", df.columns.tolist())
         df["sport"] = "UNKNOWN"
 
-    # clean data
     df["edge"] = df.get("edge", "0").astype(str).str.replace("%","",regex=False)
     df["edge"] = pd.to_numeric(df["edge"], errors="coerce").fillna(0.0)
     df["confidence"] = pd.to_numeric(df.get("confidence", df.get("confidence(%)", 0)), errors="coerce").fillna(0.0)
 
-    # ✅ unified sport mapping
     df["sport"] = df["sport"].replace({
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "CFB",
@@ -139,7 +138,6 @@ def index():
     if df.empty:
         return "❌ No data found."
 
-    # add emojis
     df["lockemoji"] = df.get("lockemoji", "").fillna("").astype(str)
     df["upsetemoji"] = df.get("upsetemoji", "").fillna("").astype(str)
 
