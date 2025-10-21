@@ -1,35 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# start_cron.sh
-# Runs predictor and (optionally) commits output back to GitHub.
-# It expects an env var GITHUB_PUSH_TOKEN (personal access token) if you want automatic push.
-# If no token is provided, it will skip push steps.
-
 echo "🔁 Running daily LockBox predictor..."
 
-# run predictor (assumes predictor.py exists and writes to Output/)
-python predictor.py || { echo "predictor failed"; exit 1; }
+# Run predictor (assumes predictor.py exists and writes to Output/)
+if ! python predictor.py; then
+  echo "predictor.py failed; check logs"
+  sleep 3600
+  exit 1
+fi
 
-# git identity local to repo (not global)
+# configure git identity locally (not global)
 git config user.email "matt@tx-cet.com" || true
 git config user.name "LockBox Auto" || true
-
-# ensure we're on main and have a local repo (Render provides checkout)
 git checkout -B main || true
 
-# re-add the origin with token if provided
+# if GITHUB_PUSH_TOKEN provided, attach token to remote to push
 if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
-  # use token for push (keeps token out of git history)
   git remote remove origin 2>/dev/null || true
   git remote add origin "https://${GITHUB_PUSH_TOKEN}@github.com/MATTBOX19/lockbox-auto.git"
 fi
 
-# add and commit any CSVs
+# add CSVs and commit
 git add Output/*.csv || true
 git commit -m "auto-update predictions $(date -u +"%Y-%m-%d %H:%M UTC")" || true
 
-# push only if token set
+# push if token is present
 if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
   git push -u origin main --quiet || echo "git push failed"
 else
