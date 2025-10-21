@@ -11,6 +11,7 @@ app = Flask(__name__)
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
 PRIMARY_FILE = os.getenv("PRIMARY_FILE", "")
 FALLBACK_FILE = os.path.join(OUTPUT_DIR, "Predictions_test.csv")
+LATEST_FILE = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
 
 # Thresholds (match predictor defaults; can override in Render env)
 try:
@@ -21,16 +22,6 @@ except Exception:
     LOCK_EDGE_THRESHOLD = 0.5
     LOCK_CONFIDENCE_THRESHOLD = 51.0
     UPSET_EDGE_THRESHOLD = 0.3
-
-# Friendly sport mapping (lowercase keys)
-SPORT_MAP = {
-    "americanfootball_nfl": "NFL",
-    "americanfootball_ncaaf": "CFB",
-    "americanfootball_ncaa": "CFB",
-    "basketball_nba": "NBA",
-    "baseball_mlb": "MLB",
-    "icehockey_nhl": "NHL"
-}
 
 # HTML template (unchanged)
 TEMPLATE = """
@@ -98,9 +89,9 @@ TEMPLATE = """
         <div class="meta">{{ row.GameTime }}</div>
         <div class="pick">{{ row.MoneylinePick }}</div>
         <div class="meta">
-          Confidence: {{ "%.1f"|format(row.get('Confidence', 0)) }} % | Edge: {{ "%.2f"|format(row.get('Edge', 0)) }} %
-          <br>ML: {{ row.get('ML','') }} | ATS: {{ row.get('ATS','') }} | O/U: {{ row.get('OU','') }}
-          <br>{{ row.get('Reason','') }}
+          Confidence: {{ "%.1f"|format(row.Confidence if row.Confidence is not none else 0) }} % | Edge: {{ "%.2f"|format(row.Edge if row.Edge is not none else 0) }} %
+          <br>ML: {{ row.ML }} | ATS: {{ row.ATS }} | O/U: {{ row.OU }}
+          <br>{{ row.Reason }}
         </div>
       </div>
     {% endfor %}
@@ -124,54 +115,57 @@ TEMPLATE = """
 """
 
 def find_latest_file():
-    # If PRIMARY_FILE env var is set and exists, use it.
+    """
+    Prefer a 'latest' pinned filename, then PRIMARY_FILE, then newest datestamped Predictions_*_Explained.csv,
+    then fallback.
+    """
+    # 1) explicit latest file created by predictor
+    if os.path.exists(LATEST_FILE):
+        return LATEST_FILE
+
+    # 2) if PRIMARY_FILE env var set, use it
     if PRIMARY_FILE:
         p = os.path.join(OUTPUT_DIR, PRIMARY_FILE)
         if os.path.exists(p):
             return p
-    # Otherwise pick newest Predictions_*_Explained.csv
+
+    # 3) pick newest Predictions_*_Explained.csv
     files = glob.glob(os.path.join(OUTPUT_DIR, "Predictions_*_Explained.csv"))
-    if not files:
-        f = FALLBACK_FILE if os.path.exists(FALLBACK_FILE) else None
-        return f
-    files.sort(key=os.path.getmtime, reverse=True)
-    return files[0]
+    if files:
+        files.sort(key=os.path.getmtime, reverse=True)
+        return files[0]
+
+    # 4) fallback test file
+    if os.path.exists(FALLBACK_FILE):
+        return FALLBACK_FILE
+
+    return None
 
 def load_predictions():
     csv_path = find_latest_file()
-
-    # --- DEBUG: which file are we using? ---
-    print("DEBUG: CSV path chosen by web app:", csv_path, file=sys.stdout)
-
     if not csv_path:
         df = pd.DataFrame(columns=["Sport","GameTime","Team1","Team2","MoneylinePick","Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"])
         return df, "NO_FILE"
 
-    # Read CSV
-    df = pd.read_csv(csv_path)
+    # Debug prints - so you can see in logs which file the app chose
+    print("DEBUG: CSV path chosen by web app:", csv_path, file=sys.stderr)
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as e:
+        print("ERROR: Failed to read CSV:", e, file=sys.stderr)
+        df = pd.DataFrame(columns=["Sport","GameTime","Team1","Team2","MoneylinePick","Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"])
+        return df, os.path.basename(csv_path)
+
+    # Trim whitespace in column names
     df.columns = [c.strip() for c in df.columns]
 
-    # --- DEBUG: show head and raw unique sports ---
-    try:
-        print("DEBUG: CSV head (first rows):")
-        print(df.head(8).to_string(), file=sys.stdout)
-    except Exception as e:
-        print("DEBUG: could not print head:", e, file=sys.stdout)
-
-    # show raw unique values in Sport column (if present)
-    if "Sport" in df.columns:
-        raw_unique = df["Sport"].dropna().astype(str).str.strip().unique().tolist()
-        print("DEBUG: raw unique Sport values in CSV:", raw_unique, file=sys.stdout)
-    else:
-        print("DEBUG: CSV has no 'Sport' column. Columns:", df.columns.tolist(), file=sys.stdout)
-
-    # backwards-compatibility: rename Confidence(%) -> Confidence
+    # Very defensive normalization for Confidence column variants
     if "Confidence(%)" in df.columns and "Confidence" not in df.columns:
         df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
 
-    # Edge cleaning: remove "%" if present and coerce to float
+    # Edge: can be stored as numeric or string like "1.23%" — normalize to numeric float
     if "Edge" in df.columns:
-        df["Edge"] = df["Edge"].astype(str).str.replace("%","",regex=False)
+        df["Edge"] = df["Edge"].astype(str).str.replace("%", "", regex=False)
         df["Edge"] = pd.to_numeric(df["Edge"], errors="coerce").fillna(0.0)
     else:
         df["Edge"] = 0.0
@@ -180,44 +174,60 @@ def load_predictions():
     df["Confidence"] = pd.to_numeric(df.get("Confidence", 0), errors="coerce").fillna(0.0)
 
     # Ensure ML/ATS/OU columns exist
-    if "ML" not in df.columns:
-        df["ML"] = df.get("Moneyline","")
-    if "ATS" not in df.columns:
-        df["ATS"] = ""
-    if "OU" not in df.columns:
-        df["OU"] = ""
+    for col in ["ML", "ATS", "OU"]:
+        if col not in df.columns:
+            df[col] = ""
 
-    # Ensure LockEmoji/UpsetEmoji exist and are strings (avoid NaN)
-    df["LockEmoji"] = df.get("LockEmoji", "").fillna("").astype(str)
-    df["UpsetEmoji"] = df.get("UpsetEmoji", "").fillna("").astype(str)
-
-    # Normalize Sport values robustly (lowercase keys)
-    if "Sport" in df.columns:
-        df["Sport"] = df["Sport"].astype(str).str.strip()
-        # map known raw keys to friendly names (case-insensitive)
-        df["Sport"] = df["Sport"].apply(lambda v: SPORT_MAP.get(v.lower(), v))
-
-        # --- DEBUG: show mapped unique sports ---
-        mapped_unique = df["Sport"].dropna().unique().tolist()
-        print("DEBUG: mapped unique Sport values after normalization:", mapped_unique, file=sys.stdout)
-
+    # Ensure LockEmoji/UpsetEmoji exist and cast to string
+    if "LockEmoji" not in df.columns:
+        df["LockEmoji"] = ""
     else:
-        print("DEBUG: 'Sport' column missing after reading CSV.", file=sys.stdout)
+        df["LockEmoji"] = df["LockEmoji"].fillna("").astype(str)
+    if "UpsetEmoji" not in df.columns:
+        df["UpsetEmoji"] = ""
+    else:
+        df["UpsetEmoji"] = df["UpsetEmoji"].fillna("").astype(str)
+
+    # Map any long sport keys to friendly labels if present
+    # If predictor already outputs 'CFB','NFL' etc, this won't change them.
+    df["Sport_raw"] = df["Sport"].astype(str)
+    df["Sport"] = df["Sport"].replace({
+        "americanfootball_nfl": "NFL",
+        "americanfootball_ncaaf": "CFB",
+        "americanfootball_ncaa": "CFB",
+        "basketball_nba": "NBA",
+        "baseball_mlb": "MLB",
+        "icehockey_nhl": "NHL"
+    })
+
+    # Debugging: show first rows & sport lists
+    try:
+        print("DEBUG: CSV head (first rows):", file=sys.stderr)
+        print(df.head(6).to_string(index=False), file=sys.stderr)
+    except Exception:
+        pass
+    try:
+        raw_unique = sorted(df["Sport_raw"].dropna().unique().tolist())
+        mapped_unique = sorted(df["Sport"].dropna().unique().tolist())
+        print("DEBUG: raw unique Sport values in CSV:", raw_unique, file=sys.stderr)
+        print("DEBUG: mapped unique Sport values after normalization:", mapped_unique, file=sys.stderr)
+    except Exception:
+        pass
 
     return df, os.path.basename(csv_path)
 
 @app.route("/")
 def index():
-    sport = request.args.get("sport","All")
-    top5 = request.args.get("top5","All")
+    sport = request.args.get("sport", "All")
+    top5 = request.args.get("top5", "All")
 
     df, filename = load_predictions()
-    sports = sorted(df["Sport"].dropna().unique())
 
+    # compute missing emojis with thresholds if empty
     try:
         mask_missing_lock = df["LockEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_lock, "LockEmoji"] = df[mask_missing_lock].apply(
-            lambda r: "🔒" if (r.get("Edge",0) >= LOCK_EDGE_THRESHOLD and r.get("Confidence",0) >= LOCK_CONFIDENCE_THRESHOLD) else "",
+            lambda r: "🔒" if (float(r.get("Edge", 0) or 0) >= LOCK_EDGE_THRESHOLD and float(r.get("Confidence", 0) or 0) >= LOCK_CONFIDENCE_THRESHOLD) else "",
             axis=1
         )
     except Exception:
@@ -226,19 +236,22 @@ def index():
     try:
         mask_missing_upset = df["UpsetEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_upset, "UpsetEmoji"] = df[mask_missing_upset].apply(
-            lambda r: "🚨" if (r.get("Edge",0) >= UPSET_EDGE_THRESHOLD and r.get("Confidence",0) < 52) else "",
+            lambda r: "🚨" if (float(r.get("Edge", 0) or 0) >= UPSET_EDGE_THRESHOLD and float(r.get("Confidence", 0) or 0) < 52) else "",
             axis=1
         )
     except Exception:
         pass
 
+    # filter by sport if requested
     if sport != "All":
         df = df[df["Sport"] == sport]
 
+    # top 5 selection
     if top5 == "1":
         df["Score"] = df["Edge"].astype(float) * df["Confidence"].astype(float)
         df = df.sort_values("Score", ascending=False).head(5)
 
+    # footer summary
     footer_text = f"Showing {len(df)} picks from {filename}"
     if "Settled" in df.columns:
         total = len(df)
@@ -247,7 +260,9 @@ def index():
         footer_text = f"Settled: AUTO={auto} | NEEDS_SETTLING={needs} | Total shown={total}"
 
     records = df.to_dict(orient="records")
-    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5, footer_text=footer_text)
+    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sorted(df["Sport"].dropna().unique()), sport=sport, top5=top5, footer_text=footer_text)
 
 if __name__ == "__main__":
+    # Print a small startup note
+    print("Starting lockbox_web.py - web app will prefer Predictions_latest_Explained.csv if present", file=sys.stderr)
     app.run(host="0.0.0.0", port=10000)
