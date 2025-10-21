@@ -1,28 +1,40 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-while true; do
-  echo "🔁 Running daily LockBox predictor..."
+# start_cron.sh
+# Runs predictor and (optionally) commits output back to GitHub.
+# It expects an env var GITHUB_PUSH_TOKEN (personal access token) if you want automatic push.
+# If no token is provided, it will skip push steps.
 
-  # Run the predictor script
-  python predictor.py
+echo "🔁 Running daily LockBox predictor..."
 
-  # Configure Git identity and remote
-  git config --global user.email "matt@tx-cet.com"
-  git config --global user.name "LockBox Auto"
+# run predictor (assumes predictor.py exists and writes to Output/)
+python predictor.py || { echo "predictor failed"; exit 1; }
 
-  # Re-add Git remote each run (Render doesn’t persist remotes)
+# git identity local to repo (not global)
+git config user.email "matt@tx-cet.com" || true
+git config user.name "LockBox Auto" || true
+
+# ensure we're on main and have a local repo (Render provides checkout)
+git checkout -B main || true
+
+# re-add the origin with token if provided
+if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
+  # use token for push (keeps token out of git history)
   git remote remove origin 2>/dev/null || true
-  git remote add origin https://$GITHUB_TOKEN@github.com/MATTBOX19/lockbox-auto.git
+  git remote add origin "https://${GITHUB_PUSH_TOKEN}@github.com/MATTBOX19/lockbox-auto.git"
+fi
 
-  # Ensure we’re on the correct branch and up to date
-  git checkout main || git checkout -b main
-  git pull origin main || true
+# add and commit any CSVs
+git add Output/*.csv || true
+git commit -m "auto-update predictions $(date -u +"%Y-%m-%d %H:%M UTC")" || true
 
-  # Commit and push new predictions
-  git add Output/*.csv || true
-  git commit -m "auto-update predictions $(date)" || true
-  git push origin main || true
+# push only if token set
+if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
+  git push -u origin main --quiet || echo "git push failed"
+else
+  echo "No GITHUB_PUSH_TOKEN set — skipping git push."
+fi
 
-  echo "✅ Sleep 24h before next run..."
-  sleep 86400
-done
+echo "✅ Sleep 24h before next run..."
+sleep 86400
