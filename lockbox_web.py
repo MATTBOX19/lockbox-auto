@@ -7,13 +7,13 @@ import re
 
 app = Flask(__name__)
 
-# Config (can override via env)
+# Config
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
-PRIMARY_FILE = os.getenv("PRIMARY_FILE", "")  # if set, absolute filename under OUTPUT_DIR or name
+PRIMARY_FILE = os.getenv("PRIMARY_FILE", "")
 FALLBACK_FILE = os.path.join(OUTPUT_DIR, "Predictions_test.csv")
 LATEST_NAME = "Predictions_latest_Explained.csv"
 
-# Thresholds (match predictor defaults; can override in Render env)
+# Thresholds
 try:
     LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "0.5"))
     LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "51.0"))
@@ -23,7 +23,7 @@ except Exception:
     LOCK_CONFIDENCE_THRESHOLD = 51.0
     UPSET_EDGE_THRESHOLD = 0.3
 
-# HTML template (uses EdgeDisplay for visible text, Confidence numeric is safe)
+# HTML Template
 TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -116,21 +116,17 @@ TEMPLATE = """
 """
 
 def find_latest_file():
-    # If PRIMARY_FILE env var is set and exists, use it.
     if PRIMARY_FILE:
-        # allow either base name or full path
         p = PRIMARY_FILE if os.path.isabs(PRIMARY_FILE) else os.path.join(OUTPUT_DIR, PRIMARY_FILE)
         if os.path.exists(p):
             print("DEBUG: PRIMARY_FILE forced to:", p)
             return p
 
-    # Prefer explicit 'latest' filename if present
     latest_path = os.path.join(OUTPUT_DIR, LATEST_NAME)
     if os.path.exists(latest_path):
         print("DEBUG: Found latest file:", latest_path)
         return latest_path
 
-    # Otherwise pick newest Predictions_*_Explained.csv by mtime
     files = glob.glob(os.path.join(OUTPUT_DIR, "Predictions_*_Explained.csv"))
     if not files:
         f = FALLBACK_FILE if os.path.exists(FALLBACK_FILE) else None
@@ -142,11 +138,9 @@ def find_latest_file():
     return chosen
 
 def safe_float_from_string(s):
-    """Find first numeric token in s and return float, else None."""
     if s is None:
         return None
     s = str(s)
-    # look for numbers like -12.5, 12.34, 0.03
     m = re.search(r'(-?\d+(?:\.\d+)?)', s)
     if not m:
         return None
@@ -165,62 +159,50 @@ def load_predictions():
 
     print("DEBUG: CSV path chosen by web app:", csv_path)
     df = pd.read_csv(csv_path)
-    # sanitize column names
     df.columns = [c.strip() for c in df.columns]
 
-    # If older predictor wrote "Confidence(%)"
     if "Confidence(%)" in df.columns and "Confidence" not in df.columns:
         df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
 
-    # If predictor used HomeTeam/AwayTeam or Home/Away keys, map to Team1/Team2
     if "Team1" not in df.columns and "HomeTeam" in df.columns:
         df["Team1"] = df["HomeTeam"]
     if "Team2" not in df.columns and "AwayTeam" in df.columns:
         df["Team2"] = df["AwayTeam"]
-    # fallback to home_team/away_team
     if "Team1" not in df.columns and "home_team" in df.columns:
         df["Team1"] = df["home_team"]
     if "Team2" not in df.columns and "away_team" in df.columns:
         df["Team2"] = df["away_team"]
 
-    # Ensure MoneylinePick column exists
     if "MoneylinePick" not in df.columns and "Moneyline" in df.columns:
         df["MoneylinePick"] = df["Moneyline"]
 
-    # Keep original Edge display string
     df["EdgeDisplay"] = df.get("Edge", "").astype(str).fillna("")
 
-    # Try to coerce numeric Edge for calculations:
     if "Edge" in df.columns:
-        # remove percent sign if present and attempt numeric conversion
         edge_numeric = []
         for val in df["Edge"].astype(str).fillna(""):
             if "%" in val:
                 try:
-                    num = float(val.replace("%","").strip())
+                    num = float(val.replace("%", "").strip())
                     edge_numeric.append(num)
                     continue
                 except:
                     pass
             n = safe_float_from_string(val)
             edge_numeric.append(n if n is not None else 0.0)
-       df["Edge"] = pd.Series(pd.to_numeric(edge_numeric, errors="coerce")).fillna(0.0)
+        df["Edge"] = pd.Series(pd.to_numeric(edge_numeric, errors="coerce")).fillna(0.0)
     else:
         df["Edge"] = 0.0
 
-    # Confidence numeric
     df["Confidence"] = pd.to_numeric(df.get("Confidence", 0), errors="coerce").fillna(0.0)
 
-    # Ensure ML/ATS/OU exist
     for col in ["ML", "ATS", "OU"]:
         if col not in df.columns:
             df[col] = ""
 
-    # Ensure emoji columns exist and are strings
     df["LockEmoji"] = df.get("LockEmoji", "").fillna("").astype(str)
     df["UpsetEmoji"] = df.get("UpsetEmoji", "").fillna("").astype(str)
 
-    # Normalize Sport codes (predictor may write 'americanfootball_ncaaf' etc.)
     df["Sport_raw"] = df.get("Sport", "").astype(str).fillna("")
     df["Sport"] = df["Sport_raw"].replace({
         "americanfootball_nfl": "NFL",
@@ -230,11 +212,8 @@ def load_predictions():
         "baseball_mlb": "MLB",
         "icehockey_nhl": "NHL"
     })
-    # If replace didn't change, but values already in short names, keep them
-    # coerce empties to 'Unknown'
     df["Sport"] = df["Sport"].where(df["Sport"] != "", df["Sport_raw"].fillna("Unknown"))
 
-    # DEBUG prints
     print("DEBUG: CSV head (first rows):")
     try:
         with pd.option_context('display.max_rows', 6, 'display.max_columns', None):
@@ -252,17 +231,16 @@ def load_predictions():
 
 @app.route("/")
 def index():
-    sport = request.args.get("sport","All")
-    top5 = request.args.get("top5","All")
+    sport = request.args.get("sport", "All")
+    top5 = request.args.get("top5", "All")
 
     df, filename = load_predictions()
     sports = sorted(df["Sport"].dropna().unique())
 
-    # Compute missing Lock/Upset emojis if predictor didn't set them
     try:
         mask_missing_lock = df["LockEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_lock, "LockEmoji"] = df[mask_missing_lock].apply(
-            lambda r: "🔒" if (float(r.get("Edge",0)) >= LOCK_EDGE_THRESHOLD and float(r.get("Confidence",0)) >= LOCK_CONFIDENCE_THRESHOLD) else "",
+            lambda r: "🔒" if (float(r.get("Edge", 0)) >= LOCK_EDGE_THRESHOLD and float(r.get("Confidence", 0)) >= LOCK_CONFIDENCE_THRESHOLD) else "",
             axis=1
         )
     except Exception:
@@ -271,7 +249,7 @@ def index():
     try:
         mask_missing_upset = df["UpsetEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_upset, "UpsetEmoji"] = df[mask_missing_upset].apply(
-            lambda r: "🚨" if (float(r.get("Edge",0)) >= UPSET_EDGE_THRESHOLD and float(r.get("Confidence",0)) < 52) else "",
+            lambda r: "🚨" if (float(r.get("Edge", 0)) >= UPSET_EDGE_THRESHOLD and float(r.get("Confidence", 0)) < 52) else "",
             axis=1
         )
     except Exception:
@@ -281,7 +259,6 @@ def index():
         df = df[df["Sport"] == sport]
 
     if top5 == "1":
-        # Score uses numeric Edge and Confidence
         df["Score"] = df["Edge"].astype(float) * df["Confidence"].astype(float)
         df = df.sort_values("Score", ascending=False).head(5)
 
@@ -292,8 +269,6 @@ def index():
         auto = int((df["Settled"] == "AUTO").sum())
         footer_text = f"Settled: AUTO={auto} | NEEDS_SETTLING={needs} | Total shown={total}"
 
-    # prepare records: ensure required keys exist and types are serializable
-    # We ensure Confidence is numeric and EdgeDisplay is string
     df["Confidence"] = df["Confidence"].astype(float).fillna(0.0)
     df["EdgeDisplay"] = df["EdgeDisplay"].astype(str).fillna("")
     for col in ["Team1","Team2","MoneylinePick","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji","GameTime","Sport"]:
