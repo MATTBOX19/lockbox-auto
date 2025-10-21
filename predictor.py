@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 predictor.py — Phase 10c
-Now correctly parses The Odds API v4 structure.
+Now correctly parses The Odds API v4 structure and includes debug for sport keys.
 """
 
 import os
@@ -51,7 +51,13 @@ API_KEY = os.getenv("ODDS_API_KEY")
 REGION = "us"
 MARKETS = "h2h,spreads,totals"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
-SPORTS = ["americanfootball_nfl", "americanfootball_ncaaf", "basketball_nba", "icehockey_nhl", "baseball_mlb"]
+SPORTS = [
+    "americanfootball_nfl",
+    "americanfootball_ncaaf",
+    "basketball_nba",
+    "icehockey_nhl",
+    "baseball_mlb"
+]
 
 # ======= UTILS =======
 def american_to_prob(odds):
@@ -114,7 +120,7 @@ for sport in SPORTS:
             pick = team1 if p1 > p2 else team2
 
             rows.append({
-                "Sport": sport.split("_")[-1].upper(),
+                "Sport": sport,
                 "GameTime": ev.get("commence_time", ""),
                 "HomeTeam": home,
                 "AwayTeam": away,
@@ -133,6 +139,10 @@ if not rows:
     print("❌ No events processed successfully.")
 else:
     df = pd.DataFrame(rows)
+
+    # 🔍 Debug line: print actual sport keys written
+    print("✅ Unique sports in predictor output:", df["Sport"].unique().tolist())
+
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     out_file = OUT_DIR / f"Predictions_{date_str}_Explained.csv"
     df.to_csv(out_file, index=False)
