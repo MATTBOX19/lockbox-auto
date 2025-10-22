@@ -116,15 +116,10 @@ TEMPLATE = """
 """
 
 def find_latest_file():
-    if PRIMARY_FILE:
-        p = PRIMARY_FILE if os.path.isabs(PRIMARY_FILE) else os.path.join(OUTPUT_DIR, PRIMARY_FILE)
-        if os.path.exists(p):
-            print("DEBUG: PRIMARY_FILE forced to:", p)
-            return p
-
-    latest_path = os.path.join(OUTPUT_DIR, LATEST_NAME)
+    """Always prefer the most recent 'latest' predictions file."""
+    latest_path = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
     if os.path.exists(latest_path):
-        print("DEBUG: Found latest file:", latest_path)
+        print("DEBUG: Using stable latest file:", latest_path)
         return latest_path
 
     files = glob.glob(os.path.join(OUTPUT_DIR, "Predictions_*_Explained.csv"))
@@ -134,7 +129,7 @@ def find_latest_file():
         return f
     files.sort(key=os.path.getmtime, reverse=True)
     chosen = files[0]
-    print("DEBUG: Chosen newest Predictions_* file by mtime:", chosen)
+    print("DEBUG: Fallback to newest dated Predictions file:", chosen)
     return chosen
 
 def safe_float_from_string(s):
@@ -208,8 +203,8 @@ def load_predictions():
         "americanfootball_nfl": "NFL",
         "americanfootball_ncaaf": "CFB",
         "americanfootball_ncaa": "CFB",
-        "ncaaf": "CFB",   # added
-        "ncaa": "CFB",    # added
+        "ncaaf": "CFB",
+        "ncaa": "CFB",
         "basketball_nba": "NBA",
         "baseball_mlb": "MLB",
         "icehockey_nhl": "NHL"
@@ -223,11 +218,8 @@ def load_predictions():
     except Exception:
         pass
 
-    raw_unique = sorted(df["Sport_raw"].dropna().unique().tolist())
-    mapped_unique = sorted(df["Sport"].dropna().unique().tolist())
-    print("DEBUG: CSV columns:", df.columns.tolist())
-    print("DEBUG: raw unique Sport values in CSV:", raw_unique)
-    print("DEBUG: mapped unique Sport values after normalization:", mapped_unique)
+    print("DEBUG: raw unique Sport values:", sorted(df["Sport_raw"].unique().tolist()))
+    print("DEBUG: mapped unique Sport values:", sorted(df["Sport"].unique().tolist()))
 
     return df, os.path.basename(csv_path)
 
@@ -265,14 +257,9 @@ def index():
         df = df.sort_values("Score", ascending=False).head(5)
 
     footer_text = f"Showing {len(df)} picks from {filename}"
-    if "Settled" in df.columns:
-        total = len(df)
-        needs = int((df["Settled"] == "NEEDS_SETTLING").sum())
-        auto = int((df["Settled"] == "AUTO").sum())
-        footer_text = f"Settled: AUTO={auto} | NEEDS_SETTLING={needs} | Total shown={total}"
-
     df["Confidence"] = df["Confidence"].astype(float).fillna(0.0)
     df["EdgeDisplay"] = df["EdgeDisplay"].astype(str).fillna("")
+
     for col in ["Team1","Team2","MoneylinePick","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji","GameTime","Sport"]:
         if col not in df.columns:
             df[col] = ""
