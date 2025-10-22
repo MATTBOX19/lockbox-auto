@@ -1,9 +1,7 @@
 Flask
 gunicorn
-pandas
-pyarrow>=14.0.0
-fastparquet
-numpy
-requests
+pandas==2.3.3
+pyarrow==21.0.0
+numpy==2.3.4
+requests==2.32.5
 python-dotenv
-nfl-data-py
