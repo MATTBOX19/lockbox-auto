@@ -1,20 +1,27 @@
 """
 team_stats_fetcher.py
 ----------------------------------------
-Fetches and caches recent NFL team stats using the public
-nflverse-pbp play-by-play Parquet files (no API key).
+Robust team stats fetcher for NFL play-by-play.
 
-Creates /Data/team_stats_latest.csv containing team-level metrics:
-- Offensive/Defensive EPA (z-scored)
-- Offensive/Defensive success rate (z-scored)
-- Pace (plays per game, z-scored)
+Strategy:
+1) Try nfl_data_py (preferred) to import play-by-play.
+2) If that fails, attempt to download parquet bytes from raw.githubusercontent.com
+   for recent years (current, current-1, current-2).
+3) If a source succeeds, compute team-level features and save to Data/team_stats_latest.csv.
+
+Notes:
+- Upstream data availability (nflverse releases / raw parquet) can vary. If you see
+  repeated 404s, that means the nflverse hosts haven't published the season parquet yet.
+- To use nfl_data_py, install: pip install nfl-data-py
 """
 
 import os
 import io
-import requests
-import pandas as pd
+import sys
 from datetime import datetime
+
+import pandas as pd
+import requests
 
 # ---------------------------------------------------------------------
 # CONFIG
@@ -22,12 +29,12 @@ from datetime import datetime
 DATA_DIR = os.path.join(os.getcwd(), "Data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Correct RAW URL for nflverse pbp parquet files
-NFL_PBP_RAW_URL = (
+# Raw content path (try these if nfl_data_py isn't available or fails)
+RAW_PBP_URL_TEMPLATE = (
     "https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/data/play_by_play_{year}.parquet"
 )
 
-# Try current season, then fall back to the prior two seasons
+# Years to try (current, last, -2)
 CURRENT_YEAR = datetime.utcnow().year
 YEAR_PRIORITY = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2]
 
@@ -38,44 +45,123 @@ OUTPUT_CSV = os.path.join(DATA_DIR, "team_stats_latest.csv")
 # HELPERS
 # ---------------------------------------------------------------------
 def safe_mean(series: pd.Series) -> float:
-    return float(series.mean()) if series is not None and len(series) > 0 else 0.0
+    """Safe mean to avoid NaNs."""
+    try:
+        return float(series.mean()) if series is not None and len(series) > 0 else 0.0
+    except Exception:
+        return 0.0
 
 
 def _download_parquet_bytes(url: str) -> bytes:
-    """Download a parquet file as bytes; raise on non-200."""
+    """Download parquet file as bytes; raises on bad status."""
+    print(f"  -> fetching {url}")
     resp = requests.get(url, timeout=60)
     resp.raise_for_status()
     return resp.content
 
 
 # ---------------------------------------------------------------------
-# MAIN FUNCTIONS
+# FETCHING STRATEGIES
 # ---------------------------------------------------------------------
-def fetch_nfl_data() -> pd.DataFrame:
+def try_nfl_data_py(years):
     """
-    Download nflverse play-by-play parquet for the most recent available season.
-    Tries CURRENT_YEAR, then CURRENT_YEAR-1, then CURRENT_YEAR-2.
+    Try to fetch pbp using nfl_data_py (preferred).
+    This requires the pip package 'nfl-data-py' installed (pip install nfl-data-py).
+    Returns a DataFrame or raises.
+    """
+    try:
+        import nfl_data_py as nfl  # type: ignore
+    except Exception as e:
+        raise RuntimeError(
+            "nfl_data_py import failed. Install with: pip install nfl-data-py"
+        ) from e
+
+    # preferred function name variants used in the wild: import_pbp_data or import_pbp
+    func = None
+    if hasattr(nfl, "import_pbp_data"):
+        func = nfl.import_pbp_data
+    elif hasattr(nfl, "import_pbp"):
+        func = nfl.import_pbp
+    else:
+        raise RuntimeError("nfl_data_py found but no import_pbp_data/import_pbp function available.")
+
+    # Try to import PBP data for available years (stop on first successful load)
+    last_error = None
+    for y in years:
+        print(f"[nfl_data_py] Attempting to import play-by-play for {y} ...")
+        try:
+            # many users call import_pbp_data([2023]) or import_pbp_data(years=[2023])
+            # attempt common call signatures
+            try:
+                df = func([y])
+            except TypeError:
+                try:
+                    df = func(years=[y])
+                except TypeError:
+                    # fallback to generic import name
+                    df = func(y)
+            # Ensure returned is a DataFrame
+            if not isinstance(df, pd.DataFrame):
+                # some wrappers return dict or other; try to coerce
+                df = pd.DataFrame(df)
+            print(f"✅ nfl_data_py loaded {y} (rows={len(df)})")
+            return df
+        except Exception as e:
+            last_error = e
+            print(f"[nfl_data_py] could not load {y}: {e}")
+            continue
+
+    raise RuntimeError(f"nfl_data_py failed for years {years}. Last error: {last_error}")
+
+
+def try_raw_parquet(years):
+    """
+    Try to download raw parquet files from raw.githubusercontent (nflverse-pbp).
+    Returns DataFrame or raises.
     """
     last_err = None
-    for y in YEAR_PRIORITY:
-        url = NFL_PBP_RAW_URL.format(year=y)
-        print(f"Attempting to download NFL play-by-play data for {y} ...")
+    for y in years:
+        url = RAW_PBP_URL_TEMPLATE.format(year=y)
+        print(f"[raw-http] Attempting to download play-by-play for {y} ...")
         try:
             data = _download_parquet_bytes(url)
             df = pd.read_parquet(io.BytesIO(data), engine="pyarrow")
-            print(f"✅ Successfully loaded {y} data.")
+            print(f"✅ raw parquet loaded {y} (rows={len(df)})")
             return df
         except Exception as e:
-            print(f"[WARN] Could not load {y}: {e}")
             last_err = e
-    raise RuntimeError(f"No nflverse parquet data available. Last error: {last_err}")
+            print(f"[raw-http] Could not load {y}: {e}")
+            continue
+    raise RuntimeError(f"No raw parquet available for years {years}. Last error: {last_err}")
 
 
+def fetch_pbp_prefer_nfl_data_py(years=YEAR_PRIORITY):
+    """
+    Try nfl_data_py first (if installed). If it fails, fall back to raw parquet.
+    """
+    # Try nfl_data_py first (if installed).
+    try:
+        print("Trying nfl_data_py (preferred) ...")
+        return try_nfl_data_py(years)
+    except Exception as e:
+        print(f"[info] nfl_data_py path failed: {e}")
+
+    # Fallback to raw parquet
+    try:
+        print("Falling back to raw parquet downloads ...")
+        return try_raw_parquet(years)
+    except Exception as e:
+        raise RuntimeError(f"All PBP fetch strategies failed. Last error: {e}")
+
+
+# ---------------------------------------------------------------------
+# PROCESSING
+# ---------------------------------------------------------------------
 def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """Aggregate EPA/success/pace features per team and normalize (z-score)."""
     print("Computing team metrics ...")
 
-    # Offensive metrics (by posteam)
+    # Defensive/offensive groups; use dropna=False to preserve team labels where possible
     off = (
         df.groupby("posteam", dropna=False)
         .agg(
@@ -87,7 +173,6 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"posteam": "team"})
     )
 
-    # Defensive metrics (by defteam)
     deff = (
         df.groupby("defteam", dropna=False)
         .agg(
@@ -99,10 +184,9 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"defteam": "team"})
     )
 
-    # Merge O + D
     merged = pd.merge(off, deff, on="team", how="outer").fillna(0)
 
-    # Games played (by posteam)
+    # Games played
     games = (
         df.groupby("posteam", dropna=False)["game_id"]
         .nunique()
@@ -114,10 +198,10 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
     # Pace = offensive plays per game
     merged["pace"] = merged["plays"] / merged["games_played"].clip(lower=1)
 
-    # Keep only valid team rows (filter out NaN/blank)
+    # Keep valid team rows only
     merged = merged[merged["team"].notna() & (merged["team"].astype(str).str.len() > 0)].copy()
 
-    # Normalize feature columns (z-score)
+    # Normalize features
     cols_to_norm = ["epa_off", "epa_def", "success_off", "success_def", "pace"]
     for col in cols_to_norm:
         mu = merged[col].mean()
@@ -125,7 +209,8 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
         merged[col] = (merged[col] - mu) / (sd + 1e-6)
 
     merged["updated_at"] = datetime.utcnow().isoformat()
-    # Order columns
+
+    # Reorder / ensure columns exist
     ordered = [
         "team",
         "plays",
@@ -138,7 +223,6 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
         "pace",
         "updated_at",
     ]
-    # Some columns might be missing if input lacked rows; ensure presence
     for c in ordered:
         if c not in merged.columns:
             merged[c] = 0
@@ -151,15 +235,32 @@ def save_team_stats(df: pd.DataFrame, path: str = OUTPUT_CSV) -> None:
     print(f"💾 Saved team stats to {path}")
 
 
-def fetch_and_save_team_stats() -> pd.DataFrame:
-    """Top-level helper called by predictor_auto before modeling."""
+# ---------------------------------------------------------------------
+# TOP-LEVEL
+# ---------------------------------------------------------------------
+def fetch_and_save_team_stats():
+    """Main entry point called by worker/predictor."""
     try:
-        df = fetch_nfl_data()
-        metrics = compute_team_metrics(df)
+        pbp = fetch_pbp_prefer_nfl_data_py(YEAR_PRIORITY)
+        metrics = compute_team_metrics(pbp)
         save_team_stats(metrics, OUTPUT_CSV)
         return metrics
     except Exception as e:
-        print(f"[WARN] Team stats fetch failed: {e}")
+        # Provide explicit guidance
+        print("[ERROR] Team stats fetch failed.")
+        print("Details:", e)
+        print()
+        print("Common causes:")
+        print(" - The nflverse release for the requested seasons is not yet published.")
+        print(" - The Python package `nfl_data_py` is not installed or is unable to retrieve the season.")
+        print()
+        print("Try these steps:")
+        print(" 1) Ensure pyarrow and requests are installed (these are in requirements). Example:")
+        print("      pip install pyarrow requests")
+        print(" 2) Install nfl_data_py (preferred):")
+        print("      pip install nfl-data-py")
+        print(" 3) Re-run this script. If the upstream release isn't published, you may need to wait")
+        print("    for nflverse to publish the season or use an alternate data source (Kaggle/NFLsavant).")
         return pd.DataFrame()
 
 
