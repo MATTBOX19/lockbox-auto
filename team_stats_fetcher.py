@@ -1,3 +1,5 @@
+cd /opt/render/project/src
+cat > team_stats_fetcher.py <<'PY'
 """
 team_stats_fetcher.py
 ----------------------------------------
@@ -5,7 +7,7 @@ Robust team stats fetcher for NFL play-by-play.
 
 Strategy:
 1) Try nfl_data_py (preferred) to import play-by-play.
-2) If that fails, attempt to download parquet bytes from raw.githubusercontent.com
+2) If that fails, attempt to download parquet bytes from raw.githubusercontent
    for recent years (current, current-1, current-2).
 3) If a source succeeds, compute team-level features and save to Data/team_stats_latest.csv.
 
@@ -17,7 +19,6 @@ Notes:
 
 import os
 import io
-import sys
 from datetime import datetime
 
 import pandas as pd
@@ -45,7 +46,6 @@ OUTPUT_CSV = os.path.join(DATA_DIR, "team_stats_latest.csv")
 # HELPERS
 # ---------------------------------------------------------------------
 def safe_mean(series: pd.Series) -> float:
-    """Safe mean to avoid NaNs."""
     try:
         return float(series.mean()) if series is not None and len(series) > 0 else 0.0
     except Exception:
@@ -53,8 +53,6 @@ def safe_mean(series: pd.Series) -> float:
 
 
 def _download_parquet_bytes(url: str) -> bytes:
-    """Download parquet file as bytes; raises on bad status."""
-    print(f"  -> fetching {url}")
     resp = requests.get(url, timeout=60)
     resp.raise_for_status()
     return resp.content
@@ -85,24 +83,18 @@ def try_nfl_data_py(years):
     else:
         raise RuntimeError("nfl_data_py found but no import_pbp_data/import_pbp function available.")
 
-    # Try to import PBP data for available years (stop on first successful load)
     last_error = None
     for y in years:
         print(f"[nfl_data_py] Attempting to import play-by-play for {y} ...")
         try:
-            # many users call import_pbp_data([2023]) or import_pbp_data(years=[2023])
-            # attempt common call signatures
             try:
                 df = func([y])
             except TypeError:
                 try:
                     df = func(years=[y])
                 except TypeError:
-                    # fallback to generic import name
                     df = func(y)
-            # Ensure returned is a DataFrame
             if not isinstance(df, pd.DataFrame):
-                # some wrappers return dict or other; try to coerce
                 df = pd.DataFrame(df)
             print(f"✅ nfl_data_py loaded {y} (rows={len(df)})")
             return df
@@ -139,14 +131,12 @@ def fetch_pbp_prefer_nfl_data_py(years=YEAR_PRIORITY):
     """
     Try nfl_data_py first (if installed). If it fails, fall back to raw parquet.
     """
-    # Try nfl_data_py first (if installed).
     try:
         print("Trying nfl_data_py (preferred) ...")
         return try_nfl_data_py(years)
     except Exception as e:
         print(f"[info] nfl_data_py path failed: {e}")
 
-    # Fallback to raw parquet
     try:
         print("Falling back to raw parquet downloads ...")
         return try_raw_parquet(years)
@@ -161,7 +151,6 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """Aggregate EPA/success/pace features per team and normalize (z-score)."""
     print("Computing team metrics ...")
 
-    # Defensive/offensive groups; use dropna=False to preserve team labels where possible
     off = (
         df.groupby("posteam", dropna=False)
         .agg(
@@ -186,7 +175,6 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
     merged = pd.merge(off, deff, on="team", how="outer").fillna(0)
 
-    # Games played
     games = (
         df.groupby("posteam", dropna=False)["game_id"]
         .nunique()
@@ -195,13 +183,9 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
     )
     merged = merged.merge(games, on="team", how="left").fillna({"games_played": 0})
 
-    # Pace = offensive plays per game
     merged["pace"] = merged["plays"] / merged["games_played"].clip(lower=1)
-
-    # Keep valid team rows only
     merged = merged[merged["team"].notna() & (merged["team"].astype(str).str.len() > 0)].copy()
 
-    # Normalize features
     cols_to_norm = ["epa_off", "epa_def", "success_off", "success_def", "pace"]
     for col in cols_to_norm:
         mu = merged[col].mean()
@@ -210,7 +194,6 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
     merged["updated_at"] = datetime.utcnow().isoformat()
 
-    # Reorder / ensure columns exist
     ordered = [
         "team",
         "plays",
@@ -246,7 +229,6 @@ def fetch_and_save_team_stats():
         save_team_stats(metrics, OUTPUT_CSV)
         return metrics
     except Exception as e:
-        # Provide explicit guidance
         print("[ERROR] Team stats fetch failed.")
         print("Details:", e)
         print()
@@ -269,3 +251,4 @@ def fetch_and_save_team_stats():
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
     fetch_and_save_team_stats()
+PY
