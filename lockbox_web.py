@@ -16,11 +16,11 @@ LATEST_NAME = "Predictions_latest_Explained.csv"
 # Thresholds
 try:
     LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "0.5"))
-    LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "51.0"))
+    LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "75.0"))
     UPSET_EDGE_THRESHOLD = float(os.getenv("UPSET_EDGE_THRESHOLD", "0.3"))
 except Exception:
     LOCK_EDGE_THRESHOLD = 0.5
-    LOCK_CONFIDENCE_THRESHOLD = 51.0
+    LOCK_CONFIDENCE_THRESHOLD = 75.0
     UPSET_EDGE_THRESHOLD = 0.3
 
 # HTML Template
