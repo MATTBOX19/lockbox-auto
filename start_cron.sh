@@ -1,40 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🔁 Starting persistent LockBox daily predictor loop..."
+# start_cron.sh — worker entrypoint for Render
+# Runs predictor_auto.py once per day and optionally pushes Output back to GitHub.
 
-# Configure git identity
-git config user.email "matt@tx-cet.com" || true
-git config user.name "LockBox Auto" || true
-git checkout -B main || true
+cd /opt/render/project/src
 
-# Attach token if available
-if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
-  git remote remove origin 2>/dev/null || true
-  git remote add origin "https://${GITHUB_PUSH_TOKEN}@github.com/MATTBOX19/lockbox-auto.git"
+# optional: activate the repo virtualenv if present
+if [ -f ".venv/bin/activate" ]; then
+  # shellcheck disable=SC1091
+  . .venv/bin/activate
 fi
 
-# Main loop — runs once per day forever
-while true; do
-  echo "🔁 Running daily LockBox predictor at $(date -u +"%Y-%m-%d %H:%M UTC")..."
-  
-  # Run predictor_auto.py (auto fetch + save)
-  if ! python predictor_auto.py; then
-    echo "⚠️ predictor_auto.py failed — retrying in 1h"
-    sleep 3600
-    continue
-  fi
+# configure git identity (local only)
+git config user.email "matt@tx-cet.com" || true
+git config user.name "LockBox Auto Worker" || true
 
-  # Commit and push
+# main loop: run once and exit (Render restarts worker / or container supervision)
+echo "Starting daily predictor run: $(date -u --iso-8601=seconds)"
+
+if ! python predictor_auto.py; then
+  echo "❌ predictor_auto.py failed, exiting non-zero"
+  exit 1
+fi
+
+# Optional: push Output CSVs to GitHub if GITHUB_PUSH_TOKEN is set
+if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
+  echo "Pushing generated CSVs back to GitHub..."
+  git remote remove origin 2>/dev/null || true
+  git remote add origin "https://${GITHUB_PUSH_TOKEN}@github.com/MATTBOX19/lockbox-auto.git"
   git add Output/*.csv || true
-  git commit -m "auto-update predictions $(date -u +"%Y-%m-%d %H:%M UTC")" || true
+  git commit -m "chore(auto): add latest predictions $(date -u +%F)" || true
+  git push origin HEAD:main --quiet || echo "Push failed (check token/permissions)."
+else
+  echo "No GITHUB_PUSH_TOKEN set — skipping git push."
+fi
 
-  if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
-    git push -u origin main --quiet || echo "⚠️ git push failed"
-  else
-    echo "No GITHUB_PUSH_TOKEN set — skipping git push."
-  fi
-
-  echo "✅ Sleep 24h before next run..."
-  sleep 86400
-done
+echo "Run complete: $(date -u --iso-8601=seconds)"
