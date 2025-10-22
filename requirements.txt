@@ -1,6 +1,7 @@
 Flask
 gunicorn
 pandas
+pyarrow>=14.0.0
 numpy
 requests
 python-dotenv
