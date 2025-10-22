@@ -187,11 +187,18 @@ if rows:
     df = pd.DataFrame(rows)
     df["LockScore"] = df["Confidence"] * df["Edge"]
     df = df.sort_values("LockScore", ascending=False)
+
+    # pick top 5 overall
     top5_idx = df.head(5).index
 
     for i, r in df.iterrows():
-        lock = (i in top5_idx) or (r["Edge"] > LOCK_EDGE_THRESHOLD and r["Confidence"] > LOCK_CONFIDENCE_THRESHOLD)
-        upset = (r["Edge"] > UPSET_EDGE_THRESHOLD and r["Confidence"] < 50)
+        edge = float(r["Edge"])
+        conf = float(r["Confidence"])
+
+        # convert threshold to same % scale
+        lock = (i in top5_idx) or (edge > (LOCK_EDGE_THRESHOLD * 100) and conf > LOCK_CONFIDENCE_THRESHOLD)
+        upset = (edge > (UPSET_EDGE_THRESHOLD * 100) and conf < 50)
+
         df.at[i, "LockEmoji"] = "🔒" if lock else ""
         df.at[i, "UpsetEmoji"] = "💥" if upset else ""
 
