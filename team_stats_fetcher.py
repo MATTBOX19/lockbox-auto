@@ -23,7 +23,7 @@ from datetime import datetime
 DATA_DIR = os.path.join(os.getcwd(), "Data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-NFLFASTR_URL = "https://github.com/nflverse/nflfastR-data/raw/master/data/play_by_play_{year}.parquet"
+NFLFASTR_URL = "https://github.com/nflverse/nflverse-pbp/raw/master/data/play_by_play_{year}.parquet"
 
 CURRENT_YEAR = datetime.now().year
 ROLLING_WEEKS = 5  # compute last 5 weeks average
