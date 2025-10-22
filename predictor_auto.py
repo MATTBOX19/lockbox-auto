@@ -21,7 +21,7 @@ LATEST_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 DEFAULTS = {
     "ADJUST_FACTOR": 0.35,
     "LOCK_EDGE_THRESHOLD": 0.5,
-    "LOCK_CONFIDENCE_THRESHOLD": 51.0,
+    "LOCK_CONFIDENCE_THRESHOLD": 75.0,
     "UPSET_EDGE_THRESHOLD": 0.3,
     "calibrate_lr": 0.05,
     "calibrate_window": 500
