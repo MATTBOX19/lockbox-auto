@@ -1,17 +1,18 @@
 """
 team_stats_fetcher.py
 ----------------------------------------
-Fetches and caches current-season NFL team stats
-using the public nflverse-pbp data (no API key needed).
+Fetches and caches recent NFL team stats using the public
+nflverse-pbp play-by-play Parquet files (no API key).
 
-Creates /Data/team_stats_latest.csv containing
-team-level metrics for offensive and defensive
-EPA, success rate, and pace.
-
-Later phases can extend this module for NBA/NHL/MLB/CFB.
+Creates /Data/team_stats_latest.csv containing team-level metrics:
+- Offensive/Defensive EPA (z-scored)
+- Offensive/Defensive success rate (z-scored)
+- Pace (plays per game, z-scored)
 """
 
 import os
+import io
+import requests
 import pandas as pd
 from datetime import datetime
 
@@ -21,50 +22,62 @@ from datetime import datetime
 DATA_DIR = os.path.join(os.getcwd(), "Data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Updated repo URL (nflverse-pbp is the current maintained source)
-NFLFASTR_URL = "https://github.com/nflverse/nflverse-pbp/raw/master/data/play_by_play_{year}.parquet"
+# Correct RAW URL for nflverse pbp parquet files
+NFL_PBP_RAW_URL = (
+    "https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/data/play_by_play_{year}.parquet"
+)
 
-CURRENT_YEAR = datetime.now().year
-ROLLING_WEEKS = 5  # compute last 5 weeks average
+# Try current season, then fall back to the prior two seasons
+CURRENT_YEAR = datetime.utcnow().year
+YEAR_PRIORITY = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2]
+
 OUTPUT_CSV = os.path.join(DATA_DIR, "team_stats_latest.csv")
 
 
 # ---------------------------------------------------------------------
 # HELPERS
 # ---------------------------------------------------------------------
-def safe_mean(series):
-    """Safe mean function to avoid NaN issues."""
-    return series.mean() if not series.empty else 0.0
+def safe_mean(series: pd.Series) -> float:
+    return float(series.mean()) if series is not None and len(series) > 0 else 0.0
+
+
+def _download_parquet_bytes(url: str) -> bytes:
+    """Download a parquet file as bytes; raise on non-200."""
+    resp = requests.get(url, timeout=60)
+    resp.raise_for_status()
+    return resp.content
 
 
 # ---------------------------------------------------------------------
 # MAIN FUNCTIONS
 # ---------------------------------------------------------------------
-def fetch_nfl_data(year: int = CURRENT_YEAR) -> pd.DataFrame:
+def fetch_nfl_data() -> pd.DataFrame:
     """
-    Download nflverse-pbp play-by-play parquet for given year.
-    Falls back automatically to the prior season if not available.
+    Download nflverse play-by-play parquet for the most recent available season.
+    Tries CURRENT_YEAR, then CURRENT_YEAR-1, then CURRENT_YEAR-2.
     """
-    for y in [year, year - 1]:
-        url = NFLFASTR_URL.format(year=y)
+    last_err = None
+    for y in YEAR_PRIORITY:
+        url = NFL_PBP_RAW_URL.format(year=y)
         print(f"Attempting to download NFL play-by-play data for {y} ...")
         try:
-            df = pd.read_parquet(url)
+            data = _download_parquet_bytes(url)
+            df = pd.read_parquet(io.BytesIO(data), engine="pyarrow")
             print(f"✅ Successfully loaded {y} data.")
             return df
         except Exception as e:
             print(f"[WARN] Could not load {y}: {e}")
-            continue
-    raise RuntimeError("No nflverse-pbp parquet data available for recent years.")
+            last_err = e
+    raise RuntimeError(f"No nflverse parquet data available. Last error: {last_err}")
 
 
 def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate EPA/success/pace features per team."""
+    """Aggregate EPA/success/pace features per team and normalize (z-score)."""
     print("Computing team metrics ...")
 
-    # Offensive metrics
+    # Offensive metrics (by posteam)
     off = (
-        df.groupby("posteam")
+        df.groupby("posteam", dropna=False)
         .agg(
             plays=("play_id", "count"),
             epa_off=("epa", safe_mean),
@@ -74,9 +87,9 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"posteam": "team"})
     )
 
-    # Defensive metrics
-    defn = (
-        df.groupby("defteam")
+    # Defensive metrics (by defteam)
+    deff = (
+        df.groupby("defteam", dropna=False)
         .agg(
             plays_def=("play_id", "count"),
             epa_def=("epa", safe_mean),
@@ -86,35 +99,62 @@ def compute_team_metrics(df: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"defteam": "team"})
     )
 
-    # Merge offensive + defensive metrics
-    merged = pd.merge(off, defn, on="team", how="outer").fillna(0)
+    # Merge O + D
+    merged = pd.merge(off, deff, on="team", how="outer").fillna(0)
 
-    # Derive pace = plays per game
-    games = df.groupby("posteam")["game_id"].nunique().reset_index()
-    games.columns = ["team", "games_played"]
-    merged = merged.merge(games, on="team", how="left")
+    # Games played (by posteam)
+    games = (
+        df.groupby("posteam", dropna=False)["game_id"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"posteam": "team", "game_id": "games_played"})
+    )
+    merged = merged.merge(games, on="team", how="left").fillna({"games_played": 0})
+
+    # Pace = offensive plays per game
     merged["pace"] = merged["plays"] / merged["games_played"].clip(lower=1)
+
+    # Keep only valid team rows (filter out NaN/blank)
+    merged = merged[merged["team"].notna() & (merged["team"].astype(str).str.len() > 0)].copy()
 
     # Normalize feature columns (z-score)
     cols_to_norm = ["epa_off", "epa_def", "success_off", "success_def", "pace"]
-    merged[cols_to_norm] = merged[cols_to_norm].apply(
-        lambda x: (x - x.mean()) / (x.std() + 1e-6)
-    )
+    for col in cols_to_norm:
+        mu = merged[col].mean()
+        sd = merged[col].std()
+        merged[col] = (merged[col] - mu) / (sd + 1e-6)
 
     merged["updated_at"] = datetime.utcnow().isoformat()
+    # Order columns
+    ordered = [
+        "team",
+        "plays",
+        "plays_def",
+        "games_played",
+        "epa_off",
+        "success_off",
+        "epa_def",
+        "success_def",
+        "pace",
+        "updated_at",
+    ]
+    # Some columns might be missing if input lacked rows; ensure presence
+    for c in ordered:
+        if c not in merged.columns:
+            merged[c] = 0
+    merged = merged[ordered]
     return merged
 
 
-def save_team_stats(df: pd.DataFrame, path: str = OUTPUT_CSV):
-    """Save DataFrame to CSV."""
+def save_team_stats(df: pd.DataFrame, path: str = OUTPUT_CSV) -> None:
     df.to_csv(path, index=False)
     print(f"💾 Saved team stats to {path}")
 
 
-def fetch_and_save_team_stats():
+def fetch_and_save_team_stats() -> pd.DataFrame:
     """Top-level helper called by predictor_auto before modeling."""
     try:
-        df = fetch_nfl_data(CURRENT_YEAR)
+        df = fetch_nfl_data()
         metrics = compute_team_metrics(df)
         save_team_stats(metrics, OUTPUT_CSV)
         return metrics
