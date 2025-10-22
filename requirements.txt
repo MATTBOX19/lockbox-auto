@@ -1,4 +1,3 @@
-cat > requirements.txt <<'REQ'
 Flask
 gunicorn
 pandas
@@ -8,4 +7,3 @@ numpy
 requests
 python-dotenv
 nfl-data-py
-REQ
