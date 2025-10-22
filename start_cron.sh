@@ -4,6 +4,9 @@ set -euo pipefail
 # start_cron.sh — worker entrypoint for Render
 # Runs predictor_auto.py once per day and optionally pushes Output back to GitHub.
 
+# allow fallback to GITHUB_TOKEN if GITHUB_PUSH_TOKEN not defined
+: "${GITHUB_PUSH_TOKEN:=$GITHUB_TOKEN}"
+
 cd /opt/render/project/src
 
 # optional: activate the repo virtualenv if present
