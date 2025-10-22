@@ -1,5 +1,3 @@
-cd /opt/render/project/src
-cat > team_stats_fetcher.py <<'PY'
 """
 team_stats_fetcher.py
 ----------------------------------------
@@ -251,4 +249,3 @@ def fetch_and_save_team_stats():
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
     fetch_and_save_team_stats()
-PY
