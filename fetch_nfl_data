@@ -1,5 +1,8 @@
 def fetch_nfl_data(year: int = CURRENT_YEAR) -> pd.DataFrame:
-    """Download nflfastR play-by-play parquet for given year, with fallback to prior year if unavailable."""
+    """
+    Download nflfastR play-by-play parquet for given year.
+    Falls back to the prior year automatically if the current one is unavailable.
+    """
     for y in [year, year - 1]:
         url = NFLFASTR_URL.format(year=y)
         print(f"Attempting to download NFL play-by-play data for {y} ...")
