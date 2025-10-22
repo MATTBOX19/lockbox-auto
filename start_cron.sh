@@ -29,7 +29,7 @@ if [ -n "${GITHUB_PUSH_TOKEN:-}" ]; then
   git remote remove origin 2>/dev/null || true
   git remote add origin "https://${GITHUB_PUSH_TOKEN}@github.com/MATTBOX19/lockbox-auto.git"
 
-  # NEW: make sure we're up-to-date before committing
+  # make sure we're up-to-date before committing
   git fetch origin main --depth=1 || true
   git checkout main || git checkout -B main
   git reset --hard origin/main || true
@@ -43,3 +43,8 @@ else
 fi
 
 echo "Run complete: $(date -u --iso-8601=seconds)"
+
+# keep container alive so Render marks it healthy
+while true; do
+  sleep 3600
+done
