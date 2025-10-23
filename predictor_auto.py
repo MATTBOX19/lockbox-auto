@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-# predictor_auto.py — keeps all sports; adds NFL market+stats blended model + ATS learning integration
+# predictor_auto.py — unified smart pick model with ATS/OU/ML logic + NFL stat blend
 
-import os, json, uuid
+import os, json, uuid, math, requests, pandas as pd
 from pathlib import Path
 from datetime import datetime, timezone
-import math
-import requests
-import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# -------------------------
-# Paths & config
-# -------------------------
 ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
 OUT_DIR.mkdir(exist_ok=True)
 CONFIG_FILE = OUT_DIR / "predictor_config.json"
 HISTORY_FILE = OUT_DIR / "history.csv"
 LATEST_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
+TEAM_STATS_PATH = os.path.join("Data","team_stats_latest.csv")
 
 DEFAULTS = {
     "ADJUST_FACTOR": 0.35,
@@ -28,7 +23,6 @@ DEFAULTS = {
     "UPSET_EDGE_THRESHOLD": 0.3,
     "calibrate_lr": 0.05,
     "calibrate_window": 500,
-    # NFL blend weights
     "NFL_MARKET_WEIGHT": 0.60,
     "NFL_STATS_WEIGHT": 0.40
 }
@@ -36,7 +30,7 @@ DEFAULTS = {
 def load_config():
     if CONFIG_FILE.exists():
         try:
-            with open(CONFIG_FILE, "r") as f:
+            with open(CONFIG_FILE) as f:
                 cfg = json.load(f)
             return {**DEFAULTS, **cfg}
         except Exception as e:
@@ -44,345 +38,165 @@ def load_config():
     return DEFAULTS.copy()
 
 cfg = load_config()
-
-ADJUST_FACTOR = cfg["ADJUST_FACTOR"]
-LOCK_EDGE_THRESHOLD = cfg["LOCK_EDGE_THRESHOLD"]
-LOCK_CONFIDENCE_THRESHOLD = cfg["LOCK_CONFIDENCE_THRESHOLD"]
-UPSET_EDGE_THRESHOLD = cfg["UPSET_EDGE_THRESHOLD"]
-NFL_MKT_W = cfg["NFL_MARKET_WEIGHT"]
-NFL_STA_W = cfg["NFL_STATS_WEIGHT"]
+AF = cfg["ADJUST_FACTOR"]
+LOCK_EDGE = cfg["LOCK_EDGE_THRESHOLD"]
+LOCK_CONF = cfg["LOCK_CONFIDENCE_THRESHOLD"]
+UPSET_EDGE = cfg["UPSET_EDGE_THRESHOLD"]
+NFL_MKT_W, NFL_STA_W = cfg["NFL_MARKET_WEIGHT"], cfg["NFL_STATS_WEIGHT"]
 
 API_KEY = os.getenv("ODDS_API_KEY")
-REGION = "us"
-MARKETS = "h2h,spreads,totals"
-SPORTS = [
-    "americanfootball_nfl",
-    "americanfootball_ncaaf",
-    "basketball_nba",
-    "icehockey_nhl",
-    "baseball_mlb"
-]
+REGION, MARKETS = "us", "h2h,spreads,totals"
+SPORTS = ["americanfootball_nfl","americanfootball_ncaaf","basketball_nba","icehockey_nhl","baseball_mlb"]
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
 
-# -------------------------
-# Helpers
-# -------------------------
-def american_to_prob(odds):
-    if odds is None: return None
+def american_to_prob(o):
     try:
-        o = float(odds)
-        return 100.0 / (o + 100.0) if o > 0 else -o / (-o + 100.0)
-    except:
-        return None
+        o = float(o)
+        return 100/(o+100) if o>0 else -o/(-o+100)
+    except: return None
 
-def sigmoid(x):  # stable logistic
-    if x >= 0:
-        z = math.exp(-x)
-        return 1.0 / (1.0 + z)
-    else:
-        z = math.exp(x)
-        return z / (1.0 + z)
+def sigmoid(x):
+    if x>=0: z=math.exp(-x); return 1/(1+z)
+    z=math.exp(x); return z/(1+z)
 
-def fetch_odds(sport):
-    url = ODDS_API_URL.format(sport=sport)
-    params = {"apiKey": API_KEY, "regions": REGION, "markets": MARKETS, "oddsFormat": "american"}
+def fetch_odds(s):
     try:
-        r = requests.get(url, params=params, timeout=12)
-        if r.status_code != 200:
-            print(f"⚠️ API error {r.status_code} for {sport}")
-            return []
-        data = r.json()
-        print(f"📊 Retrieved {len(data)} events for {sport}")
-        return data
+        r=requests.get(ODDS_API_URL.format(sport=s),params={"apiKey":API_KEY,"regions":REGION,"markets":MARKETS,"oddsFormat":"american"},timeout=15)
+        if r.status_code!=200: print(f"⚠️ API {r.status_code} {s}"); return []
+        data=r.json(); print(f"📊 Retrieved {len(data)} events for {s}"); return data
     except Exception as e:
-        print("⚠️ Fetch error:", e)
-        return []
+        print("⚠️ Fetch error:",e); return []
 
 def append_history(rows):
     if not rows: return
-    keys = ["id","sport","commence_time","team1","team2","pick","pred_prob","edge","ml","ats","ou","reason","created_at","settled","result"]
-    df = pd.DataFrame(rows)
-    if not HISTORY_FILE.exists():
-        df.to_csv(HISTORY_FILE, index=False, columns=keys)
-    else:
-        df.to_csv(HISTORY_FILE, index=False, header=False, mode="a", columns=keys)
+    keys=["id","sport","commence_time","team1","team2","pick","pred_prob","edge","ml","ats","ou","reason","created_at","settled","result"]
+    df=pd.DataFrame(rows)
+    if not HISTORY_FILE.exists(): df.to_csv(HISTORY_FILE,index=False,columns=keys)
+    else: df.to_csv(HISTORY_FILE,index=False,header=False,mode="a",columns=keys)
     print(f"✅ Appended {len(df)} rows to history")
 
-# -------------------------
-# NFL Team mapping & stats
-# -------------------------
-TEAM_STATS_PATH = os.path.join("Data","team_stats_latest.csv")
-
-# Map common OddsAPI team names to our CSV abbreviations
-NFL_NAME_TO_ABBR = {
-    "Arizona Cardinals": "ARI",
-    "Atlanta Falcons": "ATL",
-    "Baltimore Ravens": "BAL",
-    "Buffalo Bills": "BUF",
-    "Carolina Panthers": "CAR",
-    "Chicago Bears": "CHI",
-    "Cincinnati Bengals": "CIN",
-    "Cleveland Browns": "CLE",
-    "Dallas Cowboys": "DAL",
-    "Denver Broncos": "DEN",
-    "Detroit Lions": "DET",
-    "Green Bay Packers": "GB",
-    "Houston Texans": "HOU",
-    "Indianapolis Colts": "IND",
-    "Jacksonville Jaguars": "JAX",
-    "Kansas City Chiefs": "KC",
-    "Las Vegas Raiders": "LV",
-    "Los Angeles Chargers": "LAC",
-    "Los Angeles Rams": "LAR",
-    "Miami Dolphins": "MIA",
-    "Minnesota Vikings": "MIN",
-    "New England Patriots": "NE",
-    "New Orleans Saints": "NO",
-    "New York Giants": "NYG",
-    "New York Jets": "NYJ",
-    "Philadelphia Eagles": "PHI",
-    "Pittsburgh Steelers": "PIT",
-    "San Francisco 49ers": "SF",
-    "Seattle Seahawks": "SEA",
-    "Tampa Bay Buccaneers": "TB",
-    "Tennessee Titans": "TEN",
-    "Washington Commanders": "WAS",
-}
+NFL_NAME_TO_ABBR={
+"Arizona Cardinals":"ARI","Atlanta Falcons":"ATL","Baltimore Ravens":"BAL","Buffalo Bills":"BUF","Carolina Panthers":"CAR",
+"Chicago Bears":"CHI","Cincinnati Bengals":"CIN","Cleveland Browns":"CLE","Dallas Cowboys":"DAL","Denver Broncos":"DEN",
+"Detroit Lions":"DET","Green Bay Packers":"GB","Houston Texans":"HOU","Indianapolis Colts":"IND","Jacksonville Jaguars":"JAX",
+"Kansas City Chiefs":"KC","Las Vegas Raiders":"LV","Los Angeles Chargers":"LAC","Los Angeles Rams":"LAR","Miami Dolphins":"MIA",
+"Minnesota Vikings":"MIN","New England Patriots":"NE","New Orleans Saints":"NO","New York Giants":"NYG","New York Jets":"NYJ",
+"Philadelphia Eagles":"PHI","Pittsburgh Steelers":"PIT","San Francisco 49ers":"SF","Seattle Seahawks":"SEA","Tampa Bay Buccaneers":"TB",
+"Tennessee Titans":"TEN","Washington Commanders":"WAS"}
 
 def load_team_stats():
-    if not os.path.exists(TEAM_STATS_PATH):
-        print("ℹ️ NFL stats CSV not found — using market-only for NFL.")
-        return None
+    if not os.path.exists(TEAM_STATS_PATH): print("ℹ️ No NFL stats CSV found."); return None
     try:
-        df = pd.read_csv(TEAM_STATS_PATH)
-        df["team"] = df["team"].astype(str).str.upper()
-        df.set_index("team", inplace=True)
-        return df
-    except Exception as e:
-        print(f"⚠️ Failed to load NFL stats: {e}")
-        return None
+        df=pd.read_csv(TEAM_STATS_PATH)
+        df["team"]=df["team"].astype(str).str.upper(); df.set_index("team",inplace=True); return df
+    except Exception as e: print("⚠️ Load stats error:",e); return None
 
-NFL_STATS = load_team_stats()
+NFL_STATS=load_team_stats()
 
-def get_abbr(team_name: str):
-    return NFL_NAME_TO_ABBR.get(team_name)
+def nfl_stat_prob(t1,t2):
+    if NFL_STATS is None: return None,None
+    a1,a2=NFL_NAME_TO_ABBR.get(t1),NFL_NAME_TO_ABBR.get(t2)
+    if not a1 or not a2 or a1 not in NFL_STATS.index or a2 not in NFL_STATS.index: return None,None
+    s1,s2=NFL_STATS.loc[a1],NFL_STATS.loc[a2]
+    t1_score=(s1.get("epa_off",0)-s2.get("epa_def",0))+0.5*(s1.get("success_off",0)-s2.get("success_def",0))
+    t2_score=(s2.get("epa_off",0)-s1.get("epa_def",0))+0.5*(s2.get("success_off",0)-s1.get("success_def",0))
+    tempo_adj=0.01*((s1.get("pace",0)-s2.get("pace",0)))
+    diff=(t1_score-t2_score)+tempo_adj
+    p1=sigmoid(3*diff)
+    epa_mean=(s1.get("epa_off",0)-s2.get("epa_def",0)+s2.get("epa_off",0)-s1.get("epa_def",0))/2
+    tempo=s1.get("pace",0)+s2.get("pace",0)
+    proj_total=44+18*epa_mean+0.25*(tempo-74)
+    return p1,max(30,min(60,proj_total))
 
-def nfl_stat_prob(team1_name: str, team2_name: str):
-    if NFL_STATS is None:
-        return None, None
-    a1 = get_abbr(team1_name)
-    a2 = get_abbr(team2_name)
-    if not a1 or not a2:
-        return None, None
-    if a1 not in NFL_STATS.index or a2 not in NFL_STATS.index:
-        return None, None
-    t1 = NFL_STATS.loc[a1]
-    t2 = NFL_STATS.loc[a2]
-    t1_score = (t1.get("epa_off", 0) - t2.get("epa_def", 0)) + 0.5*(t1.get("success_off",0) - t2.get("success_def",0))
-    t2_score = (t2.get("epa_off", 0) - t1.get("epa_def", 0)) + 0.5*(t2.get("success_off",0) - t1.get("success_def",0))
-    tempo_adj = 0.01*((t1.get("pace",0) - t2.get("pace",0)))
-    diff = (t1_score - t2_score) + tempo_adj
-    k = 3.0
-    p_t1 = sigmoid(k*diff)
-    epa_mean = (t1.get("epa_off",0) - t2.get("epa_def",0) + t2.get("epa_off",0) - t1.get("epa_def",0)) / 2.0
-    tempo = (t1.get("pace",0) + t2.get("pace",0))
-    proj_total = 44.0 + 18.0*epa_mean + 0.25*(tempo - 74.0)
-    proj_total = max(30.0, min(60.0, proj_total))
-    return p_t1, proj_total
-
-# -------------------------
-# ATS Learning Integration
-# -------------------------
-LEARN_FILE = OUT_DIR / "learn_weights.json"
-
-def load_learn_weights():
-    if not LEARN_FILE.exists():
-        print("ℹ️ No learn_weights.json yet — skipping ATS boost.")
-        return {}
-    try:
-        with open(LEARN_FILE) as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except Exception as e:
-        print("⚠️ Could not load learn_weights.json:", e)
-        return {}
-
-LEARN_WEIGHTS = load_learn_weights()
-
-def apply_ats_adjustment(team_name: str, edge: float, confidence: float):
-    try:
-        if not LEARN_WEIGHTS or team_name not in LEARN_WEIGHTS:
-            return edge, confidence
-        team_data = LEARN_WEIGHTS[team_name]
-        if "_meta" in team_data:
-            team_data.pop("_meta", None)
-        bands = list(team_data.keys())
-        if not bands:
-            return edge, confidence
-        band_val = None
-        for band in bands:
-            try:
-                low = float(band.split("-")[0].replace("+",""))
-                high = 50 if "+" in band else float(band.split("-")[1])
-                if low <= edge < high:
-                    band_val = team_data[band]
-                    break
-            except:
-                continue
-        if band_val is None:
-            return edge, confidence
-        win_rate = float(band_val)
-        adj = (win_rate - 0.5) * 0.4
-        edge_adj = edge * (1 + adj)
-        conf_adj = confidence * (1 + adj / 2)
-        return max(edge_adj, 0), max(min(conf_adj, 100), 0)
-    except Exception:
-        return edge, confidence
-
-# -------------------------
-# Main: build rows
-# -------------------------
-rows = []
-
+rows=[]
 for sport in SPORTS:
-    events = fetch_odds(sport)
-    for ev in events:
+    for ev in fetch_odds(sport):
         try:
-            home = ev.get("home_team") or ev.get("home")
-            away = ev.get("away_team") or ev.get("away")
-            if not home or not away:
-                continue
+            home,away=ev.get("home_team"),ev.get("away_team")
+            if not home or not away: continue
+            bm=ev.get("bookmakers",[{}])[0]; mk={m["key"]:m for m in bm.get("markets",[])}
+            h2h=mk.get("h2h")
+            if not h2h: print(f"⚠️ Skipping (no h2h) {ev.get('id')}"); continue
+            outs=h2h.get("outcomes",[])
+            if len(outs)!=2: continue
+            t1,t2=outs[0]["name"],outs[1]["name"]; o1,o2=outs[0]["price"],outs[1]["price"]
+            p1,p2=american_to_prob(o1),american_to_prob(o2)
+            if not p1 or not p2: continue
+            tot=p1+p2; p1n,p2n=p1/tot,p2/tot
+            blended_used=False; proj_total=None
+            if sport=="americanfootball_nfl":
+                ps,pt=nfl_stat_prob(t1,t2)
+                if ps is not None: p1n= NFL_MKT_W*p1n + NFL_STA_W*ps; p2n=1-p1n; blended_used=True; proj_total=pt
+            edge_ml=abs(p1n-p2n)*100*AF; conf_ml=max(p1n,p2n)*100
+            pick_ml=t1 if p1n>p2n else t2; ml_text=f"{t1}:{o1} | {t2}:{o2}"
 
-            bm = ev.get("bookmakers", [{}])[0]
-            markets = {m["key"]: m for m in bm.get("markets", [])}
-
-            h2h = markets.get("h2h")
-            if not h2h:
-                print(f"⚠️ Skipping event (no h2h market) id={ev.get('id')}")
-                continue
-            outcomes = h2h.get("outcomes", [])
-            if len(outcomes) != 2:
-                continue
-
-            team1, team2 = outcomes[0]["name"], outcomes[1]["name"]
-            odds1, odds2 = outcomes[0]["price"], outcomes[1]["price"]
-
-            p1 = american_to_prob(odds1)
-            p2 = american_to_prob(odds2)
-            if not p1 or not p2:
-                continue
-
-            total = p1 + p2
-            p1n, p2n = p1 / total, p2 / total
-
-            blended_used = False
-            proj_total_from_stats = None
-            if sport == "americanfootball_nfl":
-                p_stats_t1, proj_total_from_stats = nfl_stat_prob(team1, team2)
-                if p_stats_t1 is not None:
-                    p1b = NFL_MKT_W * p1n + NFL_STA_W * p_stats_t1
-                    p2b = 1.0 - p1b
-                    p1n, p2n = p1b, p2b
-                    blended_used = True
-
-            edge = abs(p1n - p2n) * 100 * ADJUST_FACTOR
-            confidence = max(p1n, p2n) * 100
-            edge, confidence = apply_ats_adjustment(team1 if p1n > p2n else team2, edge, confidence)
-
-            pick_ml = team1 if p1n > p2n else team2
-            ml_pretty = f"{team1}:{odds1} | {team2}:{odds2}"
-
-            ats = markets.get("spreads")
-            pick_ats, ats_pretty = "", ""
-            if ats:
-                outcomes_ats = ats.get("outcomes", [])
-                if len(outcomes_ats) == 2:
-                    s1, s2 = outcomes_ats[0].get("point"), outcomes_ats[1].get("point")
+            # --- ATS ---
+            edge_ats=0; pick_ats=""; ats_text=""
+            if mk.get("spreads"):
+                outs_sp=mk["spreads"].get("outcomes",[])
+                if len(outs_sp)==2:
+                    s1,s2=outs_sp[0].get("point"),outs_sp[1].get("point")
                     if s1 is not None and s2 is not None:
-                        implied_margin = (p1n - p2n) * 100 / 2.5
-                        team1_cover_diff = implied_margin + s1
-                        team2_cover_diff = -implied_margin + s2
-                        pick_ats = team1 if abs(team1_cover_diff) < abs(team2_cover_diff) else team2
-                        ats_pretty = f"{team1}:{s1} | {team2}:{s2}"
+                        implied=(p1n-p2n)*100/2.5
+                        t1_diff=implied+s1; t2_diff=-implied+s2
+                        pick_ats=t1 if abs(t1_diff)<abs(t2_diff) else t2
+                        edge_ats=abs(t1_diff-t2_diff)
+                        ats_text=f"{t1}:{s1} | {t2}:{s2}"
 
-            ou = markets.get("totals")
-            pick_ou, ou_pretty = "", ""
-            if ou:
-                outcomes_ou = ou.get("outcomes", [])
-                if len(outcomes_ou) == 2:
-                    line_pts = outcomes_ou[0].get("point")
-                    if line_pts:
-                        if blended_used and proj_total_from_stats is not None:
-                            pick_ou = "Over" if proj_total_from_stats > float(line_pts) else "Under"
-                        else:
-                            implied_total = (p1n + p2n) * 50
-                            pick_ou = "Over" if implied_total > float(line_pts) else "Under"
-                        ou_pretty = f"Over:{line_pts} / Under:{line_pts}"
+            # --- OU ---
+            edge_ou=0; pick_ou=""; ou_text=""
+            if mk.get("totals"):
+                outs_ou=mk["totals"].get("outcomes",[])
+                if len(outs_ou)==2:
+                    line=float(outs_ou[0].get("point"))
+                    if blended_used and proj_total: exp=proj_total
+                    else: exp=(p1n+p2n)*50
+                    diff=exp-line; edge_ou=abs(diff); pick_ou="Over" if diff>0 else "Under"
+                    ou_text=f"Over:{line}/Under:{line}"
 
-            lock_flag = "🔒" if (edge >= LOCK_EDGE_THRESHOLD and confidence >= LOCK_CONFIDENCE_THRESHOLD) else ""
-            upset_flag = "💥" if (edge >= UPSET_EDGE_THRESHOLD and confidence < 50) else ""
+            # --- Choose best ---
+            scores={"ML":edge_ml,"ATS":edge_ats,"OU":edge_ou}
+            best_type=max(scores,key=scores.get)
+            best_edge=scores[best_type]
+            best_pick={"ML":pick_ml,"ATS":pick_ats,"OU":pick_ou}.get(best_type,pick_ml)
 
-            reason = (
-                "NFL blended (market+team stats)"
-                if (sport == "americanfootball_nfl" and blended_used)
-                else "Simulated market differential model"
-            )
+            conf_final=conf_ml if best_type=="ML" else 60+best_edge
+            reason="NFL blended + SmartPick" if blended_used else "Smart market differential"
+            lock="🔒" if best_edge>=LOCK_EDGE and conf_final>=LOCK_CONF else ""
+            upset="💥" if best_edge>=UPSET_EDGE and conf_final<50 else ""
 
-            row = {
-                "Sport": sport.split("_")[-1].upper(),
-                "GameTime": ev.get("commence_time", ""),
-                "Team1": team1,
-                "Team2": team2,
-                "MoneylinePick": pick_ml,
-                "Confidence": round(confidence, 2),
-                "Edge": round(edge, 4),
-                "ML": ml_pretty,
-                "ATS": ats_pretty,
-                "OU": ou_pretty,
-                "Reason": reason,
-                "LockEmoji": lock_flag,
-                "UpsetEmoji": upset_flag
+            row={
+                "Sport":sport.split("_")[-1].upper(),
+                "GameTime":ev.get("commence_time",""),
+                "BestPick":f"{best_pick} ({best_type})",
+                "Confidence":round(conf_final,2),
+                "Edge":round(best_edge,3),
+                "ML":ml_text,"ATS":ats_text,"OU":ou_text,
+                "Reason":reason,"LockEmoji":lock,"UpsetEmoji":upset
             }
             rows.append(row)
 
-            event_id = ev.get("id") or str(uuid.uuid4())
             append_history([{
-                "id": event_id,
-                "sport": sport,
-                "commence_time": ev.get("commence_time",""),
-                "team1": team1,
-                "team2": team2,
-                "pick": pick_ml,
-                "pred_prob": max(p1n, p2n),
-                "edge": edge,
-                "ml": ml_pretty,
-                "ats": ats_pretty,
-                "ou": ou_pretty,
-                "reason": reason,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "settled": False,
-                "result": ""
+                "id":ev.get("id") or str(uuid.uuid4()),
+                "sport":sport,"commence_time":ev.get("commence_time",""),
+                "team1":t1,"team2":t2,"pick":best_pick,
+                "pred_prob":max(p1n,p2n),"edge":best_edge,
+                "ml":ml_text,"ats":ats_text,"ou":ou_text,
+                "reason":reason,"created_at":datetime.now(timezone.utc).isoformat(),
+                "settled":False,"result":""
             }])
+        except Exception as e: print("⚠️ Event error:",e); continue
 
-        except Exception as e:
-            print("⚠️ Event error:", e)
-            continue
-
-# -------------------------
-# Save outputs
-# -------------------------
-if not rows:
-    print("❌ No events processed")
+if not rows: print("❌ No events processed")
 else:
-    df = pd.DataFrame(rows)
-    df["LockRank"] = df["Edge"].rank(method="first", ascending=False)
-    df.loc[df["LockRank"] > 5, "LockEmoji"] = ""
-    df.drop(columns=["LockRank"], inplace=True)
-
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    dated_file = OUT_DIR / f"Predictions_{now}_Explained.csv"
-    df.to_csv(dated_file, index=False)
-    df.to_csv(LATEST_FILE, index=False)
-    print(f"✅ Saved {len(df)} rows to {dated_file}")
-    print(f"✅ Also updated {LATEST_FILE}")
+    df=pd.DataFrame(rows)
+    df["LockRank"]=df["Edge"].rank(method="first",ascending=False)
+    df.loc[df["LockRank"]>5,"LockEmoji"]=""
+    df.drop(columns=["LockRank"],inplace=True)
+    now=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    dated=OUT_DIR/f"Predictions_{now}_Explained.csv"
+    df.to_csv(dated,index=False)
+    df.to_csv(LATEST_FILE,index=False)
+    print(f"✅ Saved {len(df)} rows to {dated}")
+    print(f"✅ Updated {LATEST_FILE}")
     print("🚀 Done — ready for web display.")
