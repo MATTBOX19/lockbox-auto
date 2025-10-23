@@ -144,6 +144,22 @@ def safe_float_from_string(s):
     except:
         return None
 
+def parse_teams_from_ml(ml_value):
+    """
+    Extract Team1 and Team2 from ML string like:
+    'Kansas City Chiefs:-750 | Washington Commanders:525'
+    """
+    try:
+        parts = str(ml_value).split("|")
+        if len(parts) >= 2:
+            t1 = parts[0].split(":")[0].strip()
+            t2 = parts[1].split(":")[0].strip()
+            if t1 and t2:
+                return t1, t2
+    except Exception:
+        pass
+    return None, None
+
 def load_predictions():
     csv_path = find_latest_file()
     if not csv_path:
@@ -156,23 +172,32 @@ def load_predictions():
     df = pd.read_csv(csv_path)
     df.columns = [c.strip() for c in df.columns]
 
+    # Normalize Confidence name
     if "Confidence(%)" in df.columns and "Confidence" not in df.columns:
         df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
 
-    if "Team1" not in df.columns and "HomeTeam" in df.columns:
-        df["Team1"] = df["HomeTeam"]
-    if "Team2" not in df.columns and "AwayTeam" in df.columns:
-        df["Team2"] = df["AwayTeam"]
-    if "Team1" not in df.columns and "home_team" in df.columns:
-        df["Team1"] = df["home_team"]
-    if "Team2" not in df.columns and "away_team" in df.columns:
-        df["Team2"] = df["away_team"]
+    # Fallback: MoneylinePick <- BestPick if MoneylinePick missing
+    if "MoneylinePick" not in df.columns and "BestPick" in df.columns:
+        df["MoneylinePick"] = df["BestPick"]
 
-    if "MoneylinePick" not in df.columns and "Moneyline" in df.columns:
-        df["MoneylinePick"] = df["Moneyline"]
+    # Ensure Team1/Team2 exist; if not, try to construct from ML column
+    if "Team1" not in df.columns:
+        df["Team1"] = ""
+    if "Team2" not in df.columns:
+        df["Team2"] = ""
+    if "ML" in df.columns:
+        mask_missing = (df["Team1"].astype(str).str.strip() == "") | (df["Team2"].astype(str).str.strip() == "")
+        if mask_missing.any():
+            t1_list, t2_list = [], []
+            for ml in df.loc[mask_missing, "ML"]:
+                t1, t2 = parse_teams_from_ml(ml)
+                t1_list.append(t1 or "")
+                t2_list.append(t2 or "")
+            df.loc[mask_missing, "Team1"] = t1_list
+            df.loc[mask_missing, "Team2"] = t2_list
 
+    # Edge string for display + numeric Edge for ranking
     df["EdgeDisplay"] = df.get("Edge", "").astype(str).fillna("")
-
     if "Edge" in df.columns:
         edge_numeric = []
         for val in df["Edge"].astype(str).fillna(""):
@@ -198,6 +223,7 @@ def load_predictions():
     df["LockEmoji"] = df.get("LockEmoji", "").fillna("").astype(str)
     df["UpsetEmoji"] = df.get("UpsetEmoji", "").fillna("").astype(str)
 
+    # Sport mapping
     df["Sport_raw"] = df.get("Sport", "").astype(str).fillna("")
     df["Sport"] = df["Sport_raw"].replace({
         "americanfootball_nfl": "NFL",
@@ -231,6 +257,7 @@ def index():
     df, filename = load_predictions()
     sports = sorted(df["Sport"].dropna().unique())
 
+    # Recompute lock/upset icons if missing
     try:
         mask_missing_lock = df["LockEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_lock, "LockEmoji"] = df[mask_missing_lock].apply(
@@ -249,6 +276,7 @@ def index():
     except Exception:
         pass
 
+    # Filters
     if sport != "All":
         df = df[df["Sport"] == sport]
 
@@ -260,6 +288,7 @@ def index():
     df["Confidence"] = df["Confidence"].astype(float).fillna(0.0)
     df["EdgeDisplay"] = df["EdgeDisplay"].astype(str).fillna("")
 
+    # Columns required by template
     for col in ["Team1","Team2","MoneylinePick","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji","GameTime","Sport"]:
         if col not in df.columns:
             df[col] = ""
