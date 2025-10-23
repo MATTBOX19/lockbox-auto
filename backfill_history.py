@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-backfill_history.py — LockBox Pro Historical Builder
+backfill_history.py — LockBox Pro Historical Builder (Fixed)
 
 Pulls completed game results day-by-day (past 1-day window) from The Odds API
 and appends them into Output/history.csv.
 
-This works even on free plans that only support daysFrom=1 by looping backward.
+Automatically fixes history.csv schema if missing.
 """
 
 import os, time, requests, pandas as pd
@@ -29,14 +29,23 @@ SPORTS = {
     "MLB": "baseball_mlb",
 }
 
-START_DATE = datetime(2025, 8, 1, tzinfo=timezone.utc)  # season start
+START_DATE = datetime(2025, 8, 1, tzinfo=timezone.utc)
 TODAY = datetime.now(timezone.utc)
 
-# Load or create history.csv
+# --- Load or initialize clean file ---
+EXPECTED_COLS = ["Date", "Sport", "Home", "Away", "HomeScore", "AwayScore", "Winner"]
+
 if HISTORY_FILE.exists():
-    existing = pd.read_csv(HISTORY_FILE)
+    try:
+        existing = pd.read_csv(HISTORY_FILE)
+        if not all(col in existing.columns for col in EXPECTED_COLS):
+            print("⚠️ Existing history.csv missing columns — resetting schema.")
+            existing = pd.DataFrame(columns=EXPECTED_COLS)
+    except Exception as e:
+        print(f"⚠️ Could not read history.csv properly, recreating: {e}")
+        existing = pd.DataFrame(columns=EXPECTED_COLS)
 else:
-    existing = pd.DataFrame(columns=["Date", "Sport", "Home", "Away", "HomeScore", "AwayScore", "Winner"])
+    existing = pd.DataFrame(columns=EXPECTED_COLS)
 
 def fetch_scores(sport_key: str):
     """Fetch results for the last 1 day (API limited)."""
@@ -77,6 +86,7 @@ def add_results_for_day(day: datetime):
                 continue
 
             winner = home if sh > sa else away
+            # Avoid duplicates
             if not existing.empty and ((existing["Date"] == date) & (existing["Home"] == home) & (existing["Away"] == away)).any():
                 continue
 
@@ -94,7 +104,7 @@ def main():
     for i in range(days):
         day = TODAY - timedelta(days=i)
         add_results_for_day(day)
-        time.sleep(1.5)  # API courtesy delay
+        time.sleep(1.5)
     print(f"\n🏁 Done! {len(existing)} total games saved → {HISTORY_FILE}")
 
 if __name__ == "__main__":
