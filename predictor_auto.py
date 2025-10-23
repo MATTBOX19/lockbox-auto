@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# predictor_auto.py — unified smart pick model with ATS/OU/ML logic + NFL stat blend
+# predictor_auto.py — adaptive LockBox predictor (market+stats blend + self-tuning)
 
 import os, json, uuid, math, requests, pandas as pd
 from pathlib import Path
@@ -13,6 +13,7 @@ OUT_DIR = ROOT / "Output"
 OUT_DIR.mkdir(exist_ok=True)
 CONFIG_FILE = OUT_DIR / "predictor_config.json"
 HISTORY_FILE = OUT_DIR / "history.csv"
+METRICS_FILE = OUT_DIR / "metrics.json"
 LATEST_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 TEAM_STATS_PATH = os.path.join("Data","team_stats_latest.csv")
 
@@ -21,10 +22,11 @@ DEFAULTS = {
     "LOCK_EDGE_THRESHOLD": 0.5,
     "LOCK_CONFIDENCE_THRESHOLD": 75.0,
     "UPSET_EDGE_THRESHOLD": 0.3,
-    "calibrate_lr": 0.05,
-    "calibrate_window": 500,
     "NFL_MARKET_WEIGHT": 0.60,
-    "NFL_STATS_WEIGHT": 0.40
+    "NFL_STATS_WEIGHT": 0.40,
+    "ML_WEIGHT": 1.0,
+    "ATS_WEIGHT": 1.0,
+    "OU_WEIGHT": 1.0
 }
 
 def load_config():
@@ -39,10 +41,30 @@ def load_config():
 
 cfg = load_config()
 AF = cfg["ADJUST_FACTOR"]
-LOCK_EDGE = cfg["LOCK_EDGE_THRESHOLD"]
-LOCK_CONF = cfg["LOCK_CONFIDENCE_THRESHOLD"]
-UPSET_EDGE = cfg["UPSET_EDGE_THRESHOLD"]
+LOCK_EDGE, LOCK_CONF, UPSET_EDGE = cfg["LOCK_EDGE_THRESHOLD"], cfg["LOCK_CONFIDENCE_THRESHOLD"], cfg["UPSET_EDGE_THRESHOLD"]
 NFL_MKT_W, NFL_STA_W = cfg["NFL_MARKET_WEIGHT"], cfg["NFL_STATS_WEIGHT"]
+
+# --- Adaptive tuning ---
+if METRICS_FILE.exists():
+    try:
+        m = json.load(open(METRICS_FILE))
+        if isinstance(m, list) and m:
+            last = m[-1]
+            rates = {
+                "ML": last.get("ml_win_pct", 0),
+                "ATS": last.get("ats_win_pct", 0),
+                "OU": last.get("ou_win_pct", 0)
+            }
+            best_type = max(rates, key=rates.get)
+            best_rate = rates[best_type]
+            # normalize weights (max 1.25x)
+            for k in ["ML", "ATS", "OU"]:
+                cfg[f"{k}_WEIGHT"] = 1.25 if k == best_type else 1.0
+            print(f"🧠 Adaptive tuning: now favoring {best_type} (win rate {best_rate}%)")
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print("⚠️ Adaptive tuning skipped:", e)
 
 API_KEY = os.getenv("ODDS_API_KEY")
 REGION, MARKETS = "us", "h2h,spreads,totals"
@@ -56,13 +78,17 @@ def american_to_prob(o):
     except: return None
 
 def sigmoid(x):
-    if x>=0: z=math.exp(-x); return 1/(1+z)
+    if x>=0:
+        z=math.exp(-x); return 1/(1+z)
     z=math.exp(x); return z/(1+z)
 
 def fetch_odds(s):
     try:
-        r=requests.get(ODDS_API_URL.format(sport=s),params={"apiKey":API_KEY,"regions":REGION,"markets":MARKETS,"oddsFormat":"american"},timeout=15)
-        if r.status_code!=200: print(f"⚠️ API {r.status_code} {s}"); return []
+        r=requests.get(ODDS_API_URL.format(sport=s),
+            params={"apiKey":API_KEY,"regions":REGION,"markets":MARKETS,"oddsFormat":"american"},
+            timeout=15)
+        if r.status_code!=200:
+            print(f"⚠️ API {r.status_code} {s}"); return []
         data=r.json(); print(f"📊 Retrieved {len(data)} events for {s}"); return data
     except Exception as e:
         print("⚠️ Fetch error:",e); return []
@@ -85,11 +111,16 @@ NFL_NAME_TO_ABBR={
 "Tennessee Titans":"TEN","Washington Commanders":"WAS"}
 
 def load_team_stats():
-    if not os.path.exists(TEAM_STATS_PATH): print("ℹ️ No NFL stats CSV found."); return None
+    if not os.path.exists(TEAM_STATS_PATH):
+        print("ℹ️ No NFL stats CSV found."); return None
     try:
         df=pd.read_csv(TEAM_STATS_PATH)
-        df["team"]=df["team"].astype(str).str.upper(); df.set_index("team",inplace=True); return df
-    except Exception as e: print("⚠️ Load stats error:",e); return None
+        df["team"]=df["team"].astype(str).str.upper()
+        df.set_index("team",inplace=True)
+        return df
+    except Exception as e:
+        print("⚠️ Load stats error:",e)
+        return None
 
 NFL_STATS=load_team_stats()
 
@@ -114,21 +145,27 @@ for sport in SPORTS:
         try:
             home,away=ev.get("home_team"),ev.get("away_team")
             if not home or not away: continue
-            bm=ev.get("bookmakers",[{}])[0]; mk={m["key"]:m for m in bm.get("markets",[])}
+            bm=ev.get("bookmakers",[{}])[0]
+            mk={m["key"]:m for m in bm.get("markets",[])}
             h2h=mk.get("h2h")
-            if not h2h: print(f"⚠️ Skipping (no h2h) {ev.get('id')}"); continue
+            if not h2h: continue
             outs=h2h.get("outcomes",[])
             if len(outs)!=2: continue
-            t1,t2=outs[0]["name"],outs[1]["name"]; o1,o2=outs[0]["price"],outs[1]["price"]
+            t1,t2=outs[0]["name"],outs[1]["name"]
+            o1,o2=outs[0]["price"],outs[1]["price"]
             p1,p2=american_to_prob(o1),american_to_prob(o2)
             if not p1 or not p2: continue
             tot=p1+p2; p1n,p2n=p1/tot,p2/tot
             blended_used=False; proj_total=None
             if sport=="americanfootball_nfl":
                 ps,pt=nfl_stat_prob(t1,t2)
-                if ps is not None: p1n= NFL_MKT_W*p1n + NFL_STA_W*ps; p2n=1-p1n; blended_used=True; proj_total=pt
-            edge_ml=abs(p1n-p2n)*100*AF; conf_ml=max(p1n,p2n)*100
-            pick_ml=t1 if p1n>p2n else t2; ml_text=f"{t1}:{o1} | {t2}:{o2}"
+                if ps is not None:
+                    p1n= NFL_MKT_W*p1n + NFL_STA_W*ps
+                    p2n=1-p1n; blended_used=True; proj_total=pt
+            edge_ml=abs(p1n-p2n)*100*AF
+            conf_ml=max(p1n,p2n)*100
+            pick_ml=t1 if p1n>p2n else t2
+            ml_text=f"{t1}:{o1} | {t2}:{o2}"
 
             # --- ATS ---
             edge_ats=0; pick_ats=""; ats_text=""
@@ -149,19 +186,21 @@ for sport in SPORTS:
                 outs_ou=mk["totals"].get("outcomes",[])
                 if len(outs_ou)==2:
                     line=float(outs_ou[0].get("point"))
-                    if blended_used and proj_total: exp=proj_total
-                    else: exp=(p1n+p2n)*50
+                    exp=proj_total if blended_used and proj_total else (p1n+p2n)*50
                     diff=exp-line; edge_ou=abs(diff); pick_ou="Over" if diff>0 else "Under"
                     ou_text=f"Over:{line}/Under:{line}"
 
-            # --- Choose best ---
+            # --- Adaptive weighting ---
+            edge_ml *= cfg["ML_WEIGHT"]
+            edge_ats *= cfg["ATS_WEIGHT"]
+            edge_ou *= cfg["OU_WEIGHT"]
+
             scores={"ML":edge_ml,"ATS":edge_ats,"OU":edge_ou}
             best_type=max(scores,key=scores.get)
             best_edge=scores[best_type]
             best_pick={"ML":pick_ml,"ATS":pick_ats,"OU":pick_ou}.get(best_type,pick_ml)
-
             conf_final=conf_ml if best_type=="ML" else 60+best_edge
-            reason="NFL blended + SmartPick" if blended_used else "Smart market differential"
+            reason=("NFL blended + Adaptive SmartPick" if blended_used else "Adaptive SmartPick")
             lock="🔒" if best_edge>=LOCK_EDGE and conf_final>=LOCK_CONF else ""
             upset="💥" if best_edge>=UPSET_EDGE and conf_final<50 else ""
 
@@ -185,9 +224,12 @@ for sport in SPORTS:
                 "reason":reason,"created_at":datetime.now(timezone.utc).isoformat(),
                 "settled":False,"result":""
             }])
-        except Exception as e: print("⚠️ Event error:",e); continue
+        except Exception as e:
+            print("⚠️ Event error:", e)
+            continue
 
-if not rows: print("❌ No events processed")
+if not rows:
+    print("❌ No events processed")
 else:
     df=pd.DataFrame(rows)
     df["LockRank"]=df["Edge"].rank(method="first",ascending=False)
@@ -199,4 +241,4 @@ else:
     df.to_csv(LATEST_FILE,index=False)
     print(f"✅ Saved {len(df)} rows to {dated}")
     print(f"✅ Updated {LATEST_FILE}")
-    print("🚀 Done — ready for web display.")
+    print("🚀 Done — adaptive model ready for web display.")
