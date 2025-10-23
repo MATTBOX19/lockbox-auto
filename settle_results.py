@@ -10,6 +10,7 @@ Fetches final scores from The Odds API and grades:
 Outputs:
   Output/Predictions_<date>_Settled.csv
 Also updates each row with ML_Result, ATS_Result, OU_Result, and Settled=True.
+Appends graded results to Output/history.csv for web performance tracking.
 """
 
 import os, requests, pandas as pd
@@ -50,9 +51,7 @@ def normalize_team_name(name: str):
     return str(name or "").lower().replace(".", "").replace("-", " ").replace("state", "st").strip()
 
 def parse_spread_points(ats_field: str, team: str):
-    """
-    From "TeamA:-7.5 | TeamB:+7.5" extract team spread.
-    """
+    """From 'TeamA:-7.5 | TeamB:+7.5' extract team spread."""
     try:
         if not isinstance(ats_field, str) or "|" not in ats_field:
             return None
@@ -66,9 +65,7 @@ def parse_spread_points(ats_field: str, team: str):
     return None
 
 def parse_total_points(ou_field: str):
-    """
-    From "Over:44.5/Under:44.5" extract numeric total line.
-    """
+    """From 'Over:44.5/Under:44.5' extract numeric total line."""
     try:
         if not isinstance(ou_field, str) or "Over:" not in ou_field:
             return None
@@ -146,6 +143,44 @@ def main():
                 df.at[idx, "Settled"] = True
 
     df.to_csv(SETTLED_FILE, index=False)
+
+    # --- Append results to history.csv for dashboard tracking ---
+    history_path = OUT_DIR / "history.csv"
+    hist_cols = ["Date", "Game", "Sport", "Pick", "Result"]
+
+    settled_rows = []
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    for _, r in df[df["Settled"]].iterrows():
+        sport = str(r.get("Sport", ""))
+        pick = str(r.get("BestPick", r.get("MoneylinePick", "")))
+        game = f"{r.get('Team1','')} vs {r.get('Team2','')}"
+        ml_res = str(r.get("ML_Result", "")).strip().upper()
+        ats_res = str(r.get("ATS_Result", "")).strip().upper()
+        ou_res = str(r.get("OU_Result", "")).strip().upper()
+
+        # pick the most confident result type
+        if ml_res in ["WIN", "LOSS"]:
+            result = ml_res
+        elif ats_res in ["WIN", "LOSS"]:
+            result = ats_res
+        elif ou_res in ["WIN", "LOSS"]:
+            result = ou_res
+        else:
+            continue
+
+        settled_rows.append([today, game, sport, pick, result])
+
+    if settled_rows:
+        hist_df = pd.DataFrame(settled_rows, columns=hist_cols)
+        if history_path.exists():
+            old_df = pd.read_csv(history_path)
+            hist_df = pd.concat([old_df, hist_df], ignore_index=True)
+        hist_df.to_csv(history_path, index=False)
+        print(f"📈 Appended {len(settled_rows)} settled results to history.csv")
+    else:
+        print("⚠️ No settled results to append.")
+
     print(f"✅ Settled file saved → {SETTLED_FILE}")
 
 if __name__ == "__main__":
