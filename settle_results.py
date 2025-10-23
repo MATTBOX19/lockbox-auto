@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 """
-settle_results.py — LockBox Pro
-
-Fetches final scores from The Odds API and grades:
- - Moneyline (ML)
- - Against The Spread (ATS)
- - Over/Under (OU)
-
-Outputs:
-  Output/Predictions_<date>_Settled.csv
-  Appends each graded bet (ML/ATS/OU) to Output/history.csv
+settle_results.py — Pro version (auto Team parse)
+Grades Moneyline, ATS, and Over/Under results using The Odds API.
 """
 
 import os, requests, pandas as pd
@@ -20,7 +12,6 @@ ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
 LATEST_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 SETTLED_FILE = OUT_DIR / f"Predictions_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}_Settled.csv"
-HISTORY_FILE = OUT_DIR / "history.csv"
 
 API_KEY = os.getenv("ODDS_API_KEY")
 RESULTS_URL = "https://api.the-odds-api.com/v4/sports/{sport}/scores"
@@ -33,22 +24,19 @@ SPORT_MAP = {
     "MLB": "baseball_mlb",
 }
 
-def fetch_results(api_sport):
-    url = RESULTS_URL.format(sport=api_sport)
-    try:
-        r = requests.get(url, params={"apiKey": API_KEY, "daysFrom": 3}, timeout=15)
-        if r.status_code != 200:
-            print(f"⚠️ API error {r.status_code} for {api_sport}")
-            return []
-        data = r.json()
-        print(f"📊 Retrieved {len(data)} results for {api_sport}")
-        return data
-    except Exception as e:
-        print(f"⚠️ Fetch error for {api_sport}: {e}")
-        return []
-
 def normalize_team_name(name: str):
     return str(name or "").lower().replace(".", "").replace("-", " ").replace("state", "st").strip()
+
+def parse_teams_from_ml(ml_str):
+    try:
+        parts = str(ml_str).split("|")
+        if len(parts) >= 2:
+            t1 = parts[0].split(":")[0].strip()
+            t2 = parts[1].split(":")[0].strip()
+            return t1, t2
+    except Exception:
+        pass
+    return "", ""
 
 def parse_spread_points(ats_field: str, team: str):
     try:
@@ -72,9 +60,26 @@ def parse_total_points(ou_field: str):
     except Exception:
         return None
 
+def fetch_results(api_sport):
+    try:
+        r = requests.get(
+            RESULTS_URL.format(sport=api_sport),
+            params={"apiKey": API_KEY, "daysFrom": 3},
+            timeout=15
+        )
+        if r.status_code != 200:
+            print(f"⚠️ API {r.status_code} for {api_sport}")
+            return []
+        data = r.json()
+        print(f"📊 Retrieved {len(data)} results for {api_sport}")
+        return data
+    except Exception as e:
+        print(f"⚠️ Fetch error for {api_sport}: {e}")
+        return []
+
 def determine_results(row, sport_results):
-    team_pick = str(row.get("BestPick", "")).split("(")[0].strip()
-    team_norm = normalize_team_name(team_pick)
+    pick_team = str(row.get("BestPick", "")).split("(")[0].strip()
+    team_norm = normalize_team_name(pick_team)
     ats_line = row.get("ATS", "")
     ou_line = row.get("OU", "")
     ml_res = ats_res = ou_res = None
@@ -84,6 +89,7 @@ def determine_results(row, sport_results):
         away = normalize_team_name(g.get("away_team"))
         if team_norm not in [home, away]:
             continue
+
         scores = g.get("scores", [])
         if not scores or len(scores) != 2:
             continue
@@ -93,17 +99,17 @@ def determine_results(row, sport_results):
         if sh is None or sa is None:
             continue
 
-        # ML
+        # --- Moneyline
         winner = home if sh > sa else away
         ml_res = "Win" if team_norm == winner else "Loss"
 
-        # ATS
-        spread = parse_spread_points(ats_line, team_pick)
+        # --- ATS
+        spread = parse_spread_points(ats_line, pick_team)
         if spread is not None:
             margin = sh - sa if home == team_norm else sa - sh
             ats_res = "Win" if margin + spread > 0 else "Loss"
 
-        # OU
+        # --- OU
         total_line = parse_total_points(ou_line)
         if total_line is not None:
             total = sh + sa
@@ -124,40 +130,44 @@ def main():
 
     df = pd.read_csv(LATEST_FILE)
     df.columns = [c.strip() for c in df.columns]
-    df["ML_Result"], df["ATS_Result"], df["OU_Result"], df["Settled"] = "", "", "", False
 
-    all_rows = []
+    # Derive Team1/Team2 if missing
+    if "Team1" not in df.columns or "Team2" not in df.columns:
+        df["Team1"], df["Team2"] = zip(*df["ML"].apply(parse_teams_from_ml))
+
+    df["ML_Result"], df["ATS_Result"], df["OU_Result"], df["Settled"] = "", "", "", False
+    history_rows = []
+
     for sport, api_sport in SPORT_MAP.items():
         results = fetch_results(api_sport)
         mask = df["Sport"].astype(str).str.upper() == sport
         for idx in df[mask].index:
             ml, ats, ou = determine_results(df.loc[idx], results)
-            if ml or ats or ou:
+            team1, team2 = df.at[idx, "Team1"], df.at[idx, "Team2"]
+            pick = df.at[idx, "BestPick"]
+            if ml:
+                df.at[idx, "ML_Result"] = ml
+                history_rows.append({"Sport": sport, "BetType": "ML", "Game": f"{team1} vs {team2}", "Result": ml})
+            if ats:
+                df.at[idx, "ATS_Result"] = ats
+                history_rows.append({"Sport": sport, "BetType": "ATS", "Game": f"{team1} vs {team2}", "Result": ats})
+            if ou:
+                df.at[idx, "OU_Result"] = ou
+                history_rows.append({"Sport": sport, "BetType": "OU", "Game": f"{team1} vs {team2}", "Result": ou})
+            if any([ml, ats, ou]):
                 df.at[idx, "Settled"] = True
-            if ml: df.at[idx, "ML_Result"] = ml
-            if ats: df.at[idx, "ATS_Result"] = ats
-            if ou: df.at[idx, "OU_Result"] = ou
-
-            # Log to history
-            game = f"{df.at[idx, 'Team1']} vs {df.at[idx, 'Team2']}"
-            pick = str(df.at[idx, 'BestPick'])
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            if ml:  all_rows.append([today, game, sport, pick, "ML", ml])
-            if ats: all_rows.append([today, game, sport, pick, "ATS", ats])
-            if ou:  all_rows.append([today, game, sport, pick, "OU", ou])
 
     df.to_csv(SETTLED_FILE, index=False)
     print(f"✅ Settled file saved → {SETTLED_FILE}")
 
-    if all_rows:
-        hist_df = pd.DataFrame(all_rows, columns=["Date","Game","Sport","Pick","BetType","Result"])
-        if HISTORY_FILE.exists():
-            old = pd.read_csv(HISTORY_FILE)
-            hist_df = pd.concat([old, hist_df], ignore_index=True)
-        hist_df.to_csv(HISTORY_FILE, index=False)
-        print(f"📈 Appended {len(all_rows)} graded bets to history.csv")
+    # Write / append history file
+    hist_file = OUT_DIR / "history.csv"
+    hist_df = pd.DataFrame(history_rows)
+    if hist_file.exists():
+        hist_df.to_csv(hist_file, mode="a", index=False, header=False)
     else:
-        print("⚠️ No settled results to log.")
+        hist_df.to_csv(hist_file, index=False)
+    print(f"📈 Updated history.csv with {len(history_rows)} new rows")
 
 if __name__ == "__main__":
     main()
