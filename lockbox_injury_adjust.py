@@ -15,7 +15,7 @@ ADJ_FILE = OUT_DIR / "Predictions_latest_InjuryAdjusted.csv"
 
 # ✅ you can plug in other APIs later
 SPORTSIO_KEY = os.getenv("SPORTSIO_KEY") or os.getenv("ODDS_API_KEY")
-INJURY_URL = "https://api.sportsdata.io/v4/nfl/scores/json/Injuries/2025REG"
+INJURY_URL = "https://api.sportsdata.io/v4/nfl/scores/json/Injuries"
 
 # base weighting for key position impact
 POSITION_WEIGHTS = {
