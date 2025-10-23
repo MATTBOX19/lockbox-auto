@@ -1,84 +1,82 @@
 #!/usr/bin/env python3
 """
-lockbox_learn_ats.py — Phase 7: ATS statistical learner for LockBox
-Uses settled history to learn which teams/edge bands cover most often.
-Outputs: /Output/learn_weights.json
+lockbox_learn_ats.py — analyze ATS & OU performance
+
+Reads latest settled predictions, measures model accuracy and ROI,
+and writes performance metrics to /Output/metrics.json
 """
 
-import os, json, pandas as pd
+import json, pandas as pd
 from pathlib import Path
 from datetime import datetime
 
 ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
-HISTORY_FILE = OUT_DIR / "history.csv"
-LEARN_FILE = OUT_DIR / "learn_weights.json"
+METRICS_FILE = OUT_DIR / "metrics.json"
 
-def load_history():
-    if not HISTORY_FILE.exists():
-        print("❌ No history.csv found — nothing to learn yet.")
-        return pd.DataFrame()
+def find_latest_settled():
+    files = sorted(OUT_DIR.glob("Predictions_*_Settled.csv"))
+    if not files:
+        print("⚠️ No settled files found.")
+        return None
+    return files[-1]
+
+def calc_win(row, actual_spread=0):
     try:
-        df = pd.read_csv(HISTORY_FILE)
-        needed = {"team1","ats","edge","settled","result"}
-        if not needed.issubset(df.columns):
-            print("⚠️ history.csv missing columns; learner skipped.")
-            return pd.DataFrame()
-        df = df[df["settled"] == True]
-        df = df[df["result"].isin(["win","loss","push"])]
-        return df
-    except Exception as e:
-        print("⚠️ Failed to load history:", e)
-        return pd.DataFrame()
+        if "ATS_Result" in row and row["ATS_Result"]:
+            return 1 if row["ATS_Result"].lower() == "win" else 0
+    except:
+        pass
+    return None
 
-def compute_ats_learning(df):
-    if df.empty:
-        return {}
+def analyze(file: Path):
+    df = pd.read_csv(file)
+    df.columns = [c.strip() for c in df.columns]
+    total = len(df)
+    settled = df[df.get("Settled", False) == True]
+    if settled.empty:
+        print("⚠️ No settled data to learn from.")
+        return None
 
-    # bucket edge ranges
-    bins  = [0,2,4,6,8,10,20,50]
-    labels = ["0-2","2-4","4-6","6-8","8-10","10-20","20+"]
-    df["edge_band"] = pd.cut(df["edge"], bins=bins, labels=labels, right=False)
+    win_pct = (settled["ML_Result"].astype(str).str.lower() == "win").mean() * 100
+    avg_edge = settled["Edge"].astype(float).mean()
+    avg_conf = settled["Confidence"].astype(float).mean()
 
-    df = df[df["ats"].notna() & (df["ats"] != "")]
-    if df.empty:
-        return {}
+    roi = ((settled["ML_Result"].astype(str).str.lower() == "win").sum() -
+           (settled["ML_Result"].astype(str).str.lower() == "loss").sum()) / max(1, len(settled)) * 100
 
-    # numeric scores: win=1, push=0.5, loss=0
-    df["score"] = df["result"].map({"win":1,"push":0.5,"loss":0})
-    summary = (
-        df.groupby(["team1","edge_band"])["score"]
-        .mean()
-        .reset_index()
-        .rename(columns={"score":"win_rate"})
-    )
+    summary = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "file": file.name,
+        "games_total": int(total),
+        "games_settled": int(len(settled)),
+        "win_pct": round(win_pct, 2),
+        "avg_edge": round(avg_edge, 3),
+        "avg_confidence": round(avg_conf, 3),
+        "roi_percent": round(roi, 2)
+    }
 
-    learn = {}
-    for _,r in summary.iterrows():
-        learn.setdefault(r["team1"],{})[r["edge_band"]] = round(float(r["win_rate"]),3)
-    return learn
+    print(f"🧠 Learned: Win%={summary['win_pct']} | ROI={summary['roi_percent']}%")
+    return summary
 
-def update_weights(new_data):
-    if not new_data:
-        print("ℹ️ No new ATS learning data.")
-        return
-    old = {}
-    if LEARN_FILE.exists():
-        try: old = json.load(open(LEARN_FILE))
-        except: pass
-    for team,bands in new_data.items():
-        for band,val in bands.items():
-            old_val = old.get(team,{}).get(band,val)
-            blended = round(0.7*old_val + 0.3*val,3)
-            old.setdefault(team,{})[band] = blended
-    old["_meta"] = {"updated":datetime.utcnow().isoformat()}
-    json.dump(old, open(LEARN_FILE,"w"), indent=2)
-    print(f"✅ Updated ATS learn_weights.json with {len(new_data)} teams")
+def update_metrics(data):
+    if not data: return
+    metrics = []
+    if METRICS_FILE.exists():
+        with open(METRICS_FILE) as f:
+            try:
+                metrics = json.load(f)
+            except:
+                metrics = []
+    metrics.append(data)
+    with open(METRICS_FILE, "w") as f:
+        json.dump(metrics[-50:], f, indent=2)
+    print(f"📈 Updated metrics.json ({len(metrics[-50:])} records)")
 
-def main():
-    df = load_history()
-    new = compute_ats_learning(df)
-    update_weights(new)
-
-if __name__=="__main__":
-    main()
+if __name__ == "__main__":
+    latest = find_latest_settled()
+    if latest:
+        result = analyze(latest)
+        update_metrics(result)
+    else:
+        print("❌ No settled data found.")
