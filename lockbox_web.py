@@ -4,6 +4,8 @@ import pandas as pd
 import os
 import glob
 import re
+import csv
+from collections import defaultdict
 
 app = Flask(__name__)
 
@@ -22,6 +24,49 @@ except Exception:
     LOCK_EDGE_THRESHOLD = 0.5
     LOCK_CONFIDENCE_THRESHOLD = 75.0
     UPSET_EDGE_THRESHOLD = 0.3
+
+def compute_sport_performance():
+    """
+    Reads Output/history.csv and returns win rates by sport.
+    Expected columns: Sport, Result (WIN/LOSS)
+    """
+    history_path = os.path.join(OUTPUT_DIR, "history.csv")
+    stats = defaultdict(lambda: {"wins": 0, "losses": 0})
+
+    if not os.path.exists(history_path):
+        return "No performance data yet."
+
+    with open(history_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sport = row.get("Sport", "").strip().upper()
+            result = row.get("Result", "").strip().upper()
+            if not sport or result not in ["WIN", "LOSS"]:
+                continue
+            if result == "WIN":
+                stats[sport]["wins"] += 1
+            else:
+                stats[sport]["losses"] += 1
+
+    if not stats:
+        return "No recent games settled yet."
+
+    parts = []
+    emoji_map = {
+        "NFL": "🏈",
+        "CFB": "🎓",
+        "NBA": "🏀",
+        "MLB": "⚾",
+        "NHL": "🏒"
+    }
+
+    for sport, record in stats.items():
+        total = record["wins"] + record["losses"]
+        win_pct = (record["wins"] / total * 100) if total > 0 else 0
+        emoji = emoji_map.get(sport, "🎯")
+        parts.append(f"{emoji} {sport}: {win_pct:.0f}% ({record['wins']}-{record['losses']})")
+
+    return " | ".join(parts)
 
 # HTML Template
 TEMPLATE = """
@@ -53,9 +98,11 @@ TEMPLATE = """
   .lock { color:#f0c420; margin-left:4px; }
   .upset { color:#f85149; margin-left:4px; }
   .footer { max-width:1400px; margin: 0 auto 30px; color:#8b949e; font-size:0.9rem; padding: 10px 20px; text-align:center; }
+  .perfbar { text-align:center; background:#161b22; color:#79c0ff; font-size:1rem; padding:10px 0; border-bottom:1px solid #30363d; }
 </style>
 </head>
 <body>
+  <div class="perfbar">{{ perf_summary }}</div>
   <h1>🔥 LockBox AI Picks 🔒</h1>
   <div class="updated">Your edge, every game — Updated: {{ updated }}</div>
 
@@ -136,7 +183,7 @@ def safe_float_from_string(s):
     if s is None:
         return None
     s = str(s)
-    m = re.search(r'(-?\d+(?:\.\d+)?)', s)
+    m = re.search(r'(-?\\d+(?:\\.\\d+)?)', s)
     if not m:
         return None
     try:
@@ -145,10 +192,6 @@ def safe_float_from_string(s):
         return None
 
 def parse_teams_from_ml(ml_value):
-    """
-    Extract Team1 and Team2 from ML string like:
-    'Kansas City Chiefs:-750 | Washington Commanders:525'
-    """
     try:
         parts = str(ml_value).split("|")
         if len(parts) >= 2:
@@ -163,24 +206,19 @@ def parse_teams_from_ml(ml_value):
 def load_predictions():
     csv_path = find_latest_file()
     if not csv_path:
-        df = pd.DataFrame(columns=[
-            "Sport","GameTime","Team1","Team2","MoneylinePick","Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"
-        ])
+        df = pd.DataFrame(columns=["Sport","GameTime","Team1","Team2","MoneylinePick",
+                                   "Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"])
         return df, "NO_FILE"
 
     print("DEBUG: CSV path chosen by web app:", csv_path)
     df = pd.read_csv(csv_path)
     df.columns = [c.strip() for c in df.columns]
 
-    # Normalize Confidence name
     if "Confidence(%)" in df.columns and "Confidence" not in df.columns:
         df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
-
-    # Fallback: MoneylinePick <- BestPick if MoneylinePick missing
     if "MoneylinePick" not in df.columns and "BestPick" in df.columns:
         df["MoneylinePick"] = df["BestPick"]
 
-    # Ensure Team1/Team2 exist; if not, try to construct from ML column
     if "Team1" not in df.columns:
         df["Team1"] = ""
     if "Team2" not in df.columns:
@@ -196,7 +234,6 @@ def load_predictions():
             df.loc[mask_missing, "Team1"] = t1_list
             df.loc[mask_missing, "Team2"] = t2_list
 
-    # Edge string for display + numeric Edge for ranking
     df["EdgeDisplay"] = df.get("Edge", "").astype(str).fillna("")
     if "Edge" in df.columns:
         edge_numeric = []
@@ -215,38 +252,19 @@ def load_predictions():
         df["Edge"] = 0.0
 
     df["Confidence"] = pd.to_numeric(df.get("Confidence", 0), errors="coerce").fillna(0.0)
-
-    for col in ["ML", "ATS", "OU"]:
+    for col in ["ML","ATS","OU"]:
         if col not in df.columns:
             df[col] = ""
-
     df["LockEmoji"] = df.get("LockEmoji", "").fillna("").astype(str)
     df["UpsetEmoji"] = df.get("UpsetEmoji", "").fillna("").astype(str)
 
-    # Sport mapping
     df["Sport_raw"] = df.get("Sport", "").astype(str).fillna("")
     df["Sport"] = df["Sport_raw"].replace({
-        "americanfootball_nfl": "NFL",
-        "americanfootball_ncaaf": "CFB",
-        "americanfootball_ncaa": "CFB",
-        "ncaaf": "CFB",
-        "ncaa": "CFB",
-        "basketball_nba": "NBA",
-        "baseball_mlb": "MLB",
-        "icehockey_nhl": "NHL"
+        "americanfootball_nfl": "NFL","americanfootball_ncaaf": "CFB",
+        "americanfootball_ncaa": "CFB","ncaaf": "CFB","ncaa": "CFB",
+        "basketball_nba": "NBA","baseball_mlb": "MLB","icehockey_nhl": "NHL"
     })
     df["Sport"] = df["Sport"].where(df["Sport"] != "", df["Sport_raw"].fillna("Unknown"))
-
-    print("DEBUG: CSV head (first rows):")
-    try:
-        with pd.option_context('display.max_rows', 6, 'display.max_columns', None):
-            print(df.head(8).to_string(index=False))
-    except Exception:
-        pass
-
-    print("DEBUG: raw unique Sport values:", sorted(df["Sport_raw"].unique().tolist()))
-    print("DEBUG: mapped unique Sport values:", sorted(df["Sport"].unique().tolist()))
-
     return df, os.path.basename(csv_path)
 
 @app.route("/")
@@ -257,29 +275,21 @@ def index():
     df, filename = load_predictions()
     sports = sorted(df["Sport"].dropna().unique())
 
-    # Recompute lock/upset icons if missing
     try:
         mask_missing_lock = df["LockEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_lock, "LockEmoji"] = df[mask_missing_lock].apply(
-            lambda r: "🔒" if (float(r.get("Edge", 0)) >= LOCK_EDGE_THRESHOLD and float(r.get("Confidence", 0)) >= LOCK_CONFIDENCE_THRESHOLD) else "",
-            axis=1
-        )
+            lambda r: "🔒" if (float(r.get("Edge", 0)) >= LOCK_EDGE_THRESHOLD and float(r.get("Confidence", 0)) >= LOCK_CONFIDENCE_THRESHOLD) else "", axis=1)
     except Exception:
         pass
-
     try:
         mask_missing_upset = df["UpsetEmoji"].astype(str).str.strip() == ""
         df.loc[mask_missing_upset, "UpsetEmoji"] = df[mask_missing_upset].apply(
-            lambda r: "🚨" if (float(r.get("Edge", 0)) >= UPSET_EDGE_THRESHOLD and float(r.get("Confidence", 0)) < 52) else "",
-            axis=1
-        )
+            lambda r: "🚨" if (float(r.get("Edge", 0)) >= UPSET_EDGE_THRESHOLD and float(r.get("Confidence", 0)) < 52) else "", axis=1)
     except Exception:
         pass
 
-    # Filters
     if sport != "All":
         df = df[df["Sport"] == sport]
-
     if top5 == "1":
         df["Score"] = df["Edge"].astype(float) * df["Confidence"].astype(float)
         df = df.sort_values("Score", ascending=False).head(5)
@@ -287,14 +297,16 @@ def index():
     footer_text = f"Showing {len(df)} picks from {filename}"
     df["Confidence"] = df["Confidence"].astype(float).fillna(0.0)
     df["EdgeDisplay"] = df["EdgeDisplay"].astype(str).fillna("")
-
-    # Columns required by template
     for col in ["Team1","Team2","MoneylinePick","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji","GameTime","Sport"]:
         if col not in df.columns:
             df[col] = ""
 
+    perf_summary = compute_sport_performance()
     records = df.to_dict(orient="records")
-    return render_template_string(TEMPLATE, data=records, updated=filename, sports=sports, sport=sport, top5=top5, footer_text=footer_text)
+
+    return render_template_string(TEMPLATE, data=records, updated=filename,
+        sports=sports, sport=sport, top5=top5,
+        footer_text=footer_text, perf_summary=perf_summary)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
