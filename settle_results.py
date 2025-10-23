@@ -1,103 +1,99 @@
 #!/usr/bin/env python3
 """
-settle_results.py
+settle_results.py — auto-mark results for LockBox history
 
-Skeleton script to settle predictions after games finish.
-
-What it does now:
-- Finds the latest Predictions_YYYY-MM-DD_Explained.csv in Output/
-- Ensures stable result columns exist: ML_Result, ATS_Result, OU_Result, Settled
-- Marks rows as 'NEEDS_SETTLING' for games whose GameTime is in the past (UTC).
-- Writes a Settled CSV: Output/Predictions_YYYY-MM-DD_Settled.csv
-- Copies the settled CSV to Archive/ for safekeeping.
-
-Future integration:
-- Replace the `fetch_game_results_stub()` stub with a call to a sports results API
-  (or your own scoring source). The function should return actual outcomes which
-  will be written into ML_Result / ATS_Result / OU_Result and set Settled=True.
-
-This script is intentionally non-destructive and reversible.
+Reads your latest history and current predictions, fetches final scores,
+determines Win/Loss for ML, ATS, and OU, and outputs:
+  /Output/Predictions_<date>_Settled.csv
 """
+
+import os, json, requests
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, timezone
-import sys
 
 ROOT = Path(".")
 OUT_DIR = ROOT / "Output"
-ARCHIVE = ROOT / "Archive"
-ARCHIVE.mkdir(exist_ok=True)
+HISTORY_FILE = OUT_DIR / "history.csv"
+LATEST_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
+SETTLED_FILE = OUT_DIR / f"Predictions_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}_Settled.csv"
 
-def find_latest_predictions():
-    files = sorted(OUT_DIR.glob("Predictions_*_Explained.csv"))
-    if not files:
-        print("No predictions CSV found in Output/. Exiting.")
-        sys.exit(0)
-    return files[-1]
+API_KEY = os.getenv("ODDS_API_KEY")
+REGION = "us"
 
-def fetch_game_results_stub(row):
-    """
-    Stub for fetching actual game results.
-    Replace this with real API calls. Expected return format:
-    {
-      "ml_result": "W" or "L" or "PUSH" or None,
-      "ats_result": "W" / "L" / "PUSH" / None,
-      "ou_result": "W" / "L" / "PUSH" / None
-    }
-    """
-    return {"ml_result": None, "ats_result": None, "ou_result": None}
+RESULTS_URL = "https://api.the-odds-api.com/v4/sports/{sport}/scores"
 
-def iso_to_utc(dt_str):
+SPORT_MAP = {
+    "americanfootball_nfl": "NFL",
+    "americanfootball_ncaaf": "NCAAF",
+    "basketball_nba": "NBA",
+    "icehockey_nhl": "NHL",
+    "baseball_mlb": "MLB"
+}
+
+def fetch_results(sport_key):
+    url = RESULTS_URL.format(sport=sport_key)
+    params = {"apiKey": API_KEY, "daysFrom": 3}
     try:
-        return pd.to_datetime(dt_str, utc=True)
-    except Exception:
-        return None
+        r = requests.get(url, params=params, timeout=12)
+        if r.status_code != 200:
+            print(f"⚠️ API error {r.status_code} for {sport_key}")
+            return []
+        data = r.json()
+        print(f"📊 Retrieved {len(data)} results for {sport_key}")
+        return data
+    except Exception as e:
+        print(f"⚠️ Fetch error for {sport_key}: {e}")
+        return []
+
+def determine_result(row, results):
+    try:
+        team1, team2 = row["Team1"], row["Team2"]
+        pick = row["MoneylinePick"]
+        sport = row["Sport"]
+        if not pick or sport not in ["NFL","NCAAF","NBA","NHL","MLB"]:
+            return "N/A"
+
+        for game in results:
+            h = game.get("home_team")
+            a = game.get("away_team")
+            if not h or not a: continue
+            if team1 in [h,a] and team2 in [h,a]:
+                scores = game.get("scores", [])
+                if not scores or len(scores) != 2:
+                    continue
+                sh = next((s["score"] for s in scores if s["name"] == h), None)
+                sa = next((s["score"] for s in scores if s["name"] == a), None)
+                if sh is None or sa is None: continue
+                sh, sa = float(sh), float(sa)
+                winner = h if sh > sa else a
+                return "Win" if pick == winner else "Loss"
+        return "NoMatch"
+    except Exception as e:
+        print(f"⚠️ Result error: {e}")
+        return "Error"
 
 def main():
-    latest = find_latest_predictions()
-    print("Using predictions file:", latest)
-    df = pd.read_csv(latest)
-    # Normalize column names
+    if not os.path.exists(LATEST_FILE):
+        print("❌ No latest predictions found.")
+        return
+
+    df = pd.read_csv(LATEST_FILE)
     df.columns = [c.strip() for c in df.columns]
+    df["ML_Result"] = "Pending"
+    df["Settled"] = False
 
-    # Add result columns if missing
-    for col in ["ML_Result", "ATS_Result", "OU_Result", "Settled"]:
-        if col not in df.columns:
-            df[col] = ""
+    for sport_key, sport_name in SPORT_MAP.items():
+        results = fetch_results(sport_key)
+        sport_mask = df["Sport"].astype(str).str.upper() == sport_name
+        for idx in df[sport_mask].index:
+            res = determine_result(df.loc[idx], results)
+            if res in ["Win", "Loss"]:
+                df.at[idx, "ML_Result"] = res
+                df.at[idx, "Settled"] = True
 
-    # Parse GameTime and identify games that have started (in the past)
-    now = pd.Timestamp.now(tz=timezone.utc)
-    df["_GameTime_dt"] = df["GameTime"].apply(iso_to_utc)
-    df["_Finished"] = df["_GameTime_dt"].apply(lambda x: bool(x and x <= now))
+    df.to_csv(SETTLED_FILE, index=False)
+    print(f"✅ Settled file saved → {SETTLED_FILE}")
 
-    # For finished games, attempt to fetch results (stub for now)
-    to_settle = df[df["_Finished"] & (df["Settled"] == "")]
-    print(f"Games found total={len(df)} finished={len(df[df['_Finished']])} needing_settle={len(to_settle)}")
-
-    if not to_settle.empty:
-        for idx, row in to_settle.iterrows():
-            # Real implementation: call fetch_game_results(row) and write results
-            res = fetch_game_results_stub(row)
-            df.at[idx, "ML_Result"] = res.get("ml_result") or ""
-            df.at[idx, "ATS_Result"] = res.get("ats_result") or ""
-            df.at[idx, "OU_Result"] = res.get("ou_result") or ""
-            # mark as needs manual review (not auto-settled) for now
-            df.at[idx, "Settled"] = "NEEDS_SETTLING"
-
-    # drop helper cols
-    df = df.drop(columns=["_GameTime_dt", "_Finished"], errors="ignore")
-
-    # Save a settled CSV and copy to Archive
-    out_settled = OUT_DIR / (latest.stem.replace("_Explained", "_Settled") + latest.suffix)
-    df.to_csv(out_settled, index=False)
-    archived = ARCHIVE / out_settled.name
-    df.to_csv(archived, index=False)
-    print("Wrote settled CSV:", out_settled)
-    print("Archived copy:", archived)
-    print("NOTE: fetch_game_results_stub() is a placeholder — replace with your results API integration.")
-    # print quick counts
-    settled_count = (df["Settled"] != "").sum()
-    print(f"Marked {settled_count} rows as Settled/NEEDS_SETTLING (empty means not finished/no change).")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
