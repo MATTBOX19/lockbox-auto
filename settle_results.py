@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-settle_results.py — LockBox automatic results grader (BestPick version)
+settle_results.py — Pro-grade version for LockBox
 
-This version matches your current file format:
-Columns: ['Sport', 'GameTime', 'BestPick', 'Confidence', 'Edge', 'ML', 'ATS', 'OU', 'Reason', 'LockEmoji', 'UpsetEmoji']
+Fetches final scores from The Odds API and grades:
+ - Moneyline (ML)
+ - Against The Spread (ATS)
+ - Over/Under (OU)
 
-It fetches final scores via The Odds API, determines whether the picked team won,
-and writes a new /Output/Predictions_<date>_Settled.csv
+Outputs:
+  Output/Predictions_<date>_Settled.csv
+Also updates each row with ML_Result, ATS_Result, OU_Result, and Settled=True.
 """
 
 import os, requests, pandas as pd
@@ -44,40 +47,80 @@ def fetch_results(api_sport):
         return []
 
 def normalize_team_name(name: str):
-    """Try to normalize short/alt names for better matching."""
-    name = str(name or "").strip().lower()
-    return name.replace("state", "st").replace("saint", "st").replace(".", "").replace("-", " ")
+    return str(name or "").lower().replace(".", "").replace("-", " ").replace("state", "st").strip()
 
-def determine_result(bestpick, sport_results):
-    """Decide Win/Loss for BestPick (ML or ATS style)."""
+def parse_spread_points(ats_field: str, team: str):
+    """
+    From "TeamA:-7.5 | TeamB:+7.5" extract team spread.
+    """
     try:
-        if not bestpick:
-            return "NoPick"
+        if not isinstance(ats_field, str) or "|" not in ats_field:
+            return None
+        parts = ats_field.split("|")
+        for p in parts:
+            name, val = p.split(":")
+            if team.lower() in name.lower():
+                return float(val)
+    except Exception:
+        pass
+    return None
 
-        # Extract clean team name (strip "(ATS)" or "(ML)" or "(OU)")
-        team = bestpick.split("(")[0].strip()
-        team_norm = normalize_team_name(team)
+def parse_total_points(ou_field: str):
+    """
+    From "Over:44.5/Under:44.5" extract numeric total line.
+    """
+    try:
+        if not isinstance(ou_field, str) or "Over:" not in ou_field:
+            return None
+        val = ou_field.split("Over:")[1].split("/")[0]
+        return float(val)
+    except Exception:
+        return None
 
-        for g in sport_results:
-            home = normalize_team_name(g.get("home_team"))
-            away = normalize_team_name(g.get("away_team"))
-            if team_norm not in [home, away]:
-                continue
+def determine_results(row, sport_results):
+    team_pick = str(row.get("BestPick", "")).split("(")[0].strip()
+    team_norm = normalize_team_name(team_pick)
+    ats_line = row.get("ATS", "")
+    ou_line = row.get("OU", "")
+    ml_res = ats_res = ou_res = None
 
-            scores = g.get("scores", [])
-            if not scores or len(scores) != 2:
-                continue
-            sh = next((float(s["score"]) for s in scores if normalize_team_name(s["name"]) == home), None)
-            sa = next((float(s["score"]) for s in scores if normalize_team_name(s["name"]) == away), None)
-            if sh is None or sa is None:
-                continue
+    for g in sport_results:
+        home = normalize_team_name(g.get("home_team"))
+        away = normalize_team_name(g.get("away_team"))
+        if team_norm not in [home, away]:
+            continue
+        scores = g.get("scores", [])
+        if not scores or len(scores) != 2:
+            continue
 
-            winner = home if sh > sa else away
-            return "Win" if team_norm == winner else "Loss"
-        return "NoMatch"
-    except Exception as e:
-        print(f"⚠️ Result match error: {e}")
-        return "Error"
+        sh = next((float(s["score"]) for s in scores if normalize_team_name(s["name"]) == home), None)
+        sa = next((float(s["score"]) for s in scores if normalize_team_name(s["name"]) == away), None)
+        if sh is None or sa is None:
+            continue
+
+        # ML result
+        winner = home if sh > sa else away
+        ml_res = "Win" if team_norm == winner else "Loss"
+
+        # ATS result
+        spread = parse_spread_points(ats_line, team_pick)
+        if spread is not None:
+            margin = sh - sa if home == team_norm else sa - sh
+            ats_res = "Win" if margin + spread > 0 else "Loss"
+
+        # OU result
+        total_line = parse_total_points(ou_line)
+        if total_line is not None:
+            game_total = sh + sa
+            if "Over" in ou_line and game_total > total_line:
+                ou_res = "Win"
+            elif "Under" in ou_line and game_total < total_line:
+                ou_res = "Win"
+            else:
+                ou_res = "Loss"
+        break
+
+    return ml_res, ats_res, ou_res
 
 def main():
     if not LATEST_FILE.exists():
@@ -86,18 +129,20 @@ def main():
 
     df = pd.read_csv(LATEST_FILE)
     df.columns = [c.strip() for c in df.columns]
-
-    df["ML_Result"] = "Pending"
-    df["Settled"] = False
+    df["ML_Result"], df["ATS_Result"], df["OU_Result"], df["Settled"] = "", "", "", False
 
     for sport, api_sport in SPORT_MAP.items():
         results = fetch_results(api_sport)
-        sport_mask = df["Sport"].astype(str).str.upper() == sport
-        for idx in df[sport_mask].index:
-            pick = df.loc[idx, "BestPick"]
-            res = determine_result(pick, results)
-            if res in ["Win", "Loss"]:
-                df.at[idx, "ML_Result"] = res
+        mask = df["Sport"].astype(str).str.upper() == sport
+        for idx in df[mask].index:
+            ml, ats, ou = determine_results(df.loc[idx], results)
+            if ml:
+                df.at[idx, "ML_Result"] = ml
+            if ats:
+                df.at[idx, "ATS_Result"] = ats
+            if ou:
+                df.at[idx, "OU_Result"] = ou
+            if any([ml, ats, ou]):
                 df.at[idx, "Settled"] = True
 
     df.to_csv(SETTLED_FILE, index=False)
