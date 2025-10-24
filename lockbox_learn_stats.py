@@ -21,21 +21,21 @@ PERFORMANCE_FILE = OUT_DIR / "performance.json"
 
 # --- Common team name aliases ---
 TEAM_MAP = {
-    # NFL examples
+    # NFL
     "VIKINGS": "MIN", "CHARGERS": "LAC", "COWBOYS": "DAL", "EAGLES": "PHI", "CHIEFS": "KC",
     "BILLS": "BUF", "PACKERS": "GB", "JETS": "NYJ", "GIANTS": "NYG", "BEARS": "CHI",
-    "LIONS": "DET", "DOLPHINS": "MIA", "PATRIOTS": "NE", "RAIDERS": "LV",
-    "BRONCOS": "DEN", "RAVENS": "BAL", "BENGALS": "CIN", "STEELERS": "PIT",
-    "TEXANS": "HOU", "COLTS": "IND", "TITANS": "TEN", "SAINTS": "NO", "FALCONS": "ATL",
-    "BUCCANEERS": "TB", "JAGUARS": "JAX", "COMMANDERS": "WSH", "49ERS": "SF",
-    "SEAHAWKS": "SEA", "CARDINALS": "ARI", "RAMS": "LAR", "PANTHERS": "CAR",
-    # NBA examples
-    "LAKERS": "LAL", "CELTICS": "BOS", "WARRIORS": "GSW", "BULLS": "CHI",
-    "MAVERICKS": "DAL", "NUGGETS": "DEN", "BUCKS": "MIL", "SUNS": "PHX", "NETS": "BKN",
-    # NHL examples
+    "LIONS": "DET", "DOLPHINS": "MIA", "PATRIOTS": "NE", "RAIDERS": "LV", "BRONCOS": "DEN",
+    "RAVENS": "BAL", "BENGALS": "CIN", "STEELERS": "PIT", "TEXANS": "HOU", "COLTS": "IND",
+    "TITANS": "TEN", "SAINTS": "NO", "FALCONS": "ATL", "BUCCANEERS": "TB", "JAGUARS": "JAX",
+    "COMMANDERS": "WSH", "49ERS": "SF", "SEAHAWKS": "SEA", "CARDINALS": "ARI", "RAMS": "LAR",
+    "PANTHERS": "CAR",
+    # NBA
+    "LAKERS": "LAL", "CELTICS": "BOS", "WARRIORS": "GSW", "BULLS": "CHI", "MAVERICKS": "DAL",
+    "NUGGETS": "DEN", "BUCKS": "MIL", "SUNS": "PHX", "NETS": "BKN",
+    # NHL
     "MAPLELEAFS": "TOR", "BRUINS": "BOS", "RANGERS": "NYR", "KRAKEN": "SEA",
-    # MLB examples
-    "YANKEES": "NYY", "RED SOX": "BOS", "DODGERS": "LAD", "BRAVES": "ATL",
+    # MLB
+    "YANKEES": "NYY", "REDSOX": "BOS", "DODGERS": "LAD", "BRAVES": "ATL",
 }
 
 def normalize_team(name: str) -> str:
@@ -45,7 +45,7 @@ def normalize_team(name: str) -> str:
     for key, abbr in TEAM_MAP.items():
         if key in t:
             return abbr
-    return t[:3]  # fallback heuristic
+    return t[:3]
 
 def safe_mean(series):
     try:
@@ -63,27 +63,42 @@ def main():
     preds.columns = [c.strip() for c in preds.columns]
     stats.columns = [c.strip() for c in stats.columns]
 
-    # --- Normalize teams from BestPick column ---
+    # --- Normalize teams from BestPick ---
     if "BestPick" in preds.columns:
         preds["Team1_norm"] = preds["BestPick"].apply(normalize_team)
         print("✅ Using BestPick column as team identifier.")
     else:
-        print("⚠️ No BestPick column found.")
+        print("⚠️ No BestPick column found in predictions file.")
         return
 
-    # --- Normalize team stats ---
-    if "Home" in stats.columns:
-        stats["Home_norm"] = stats["Home"].apply(normalize_team)
-    if "Away" in stats.columns:
-        stats["Away_norm"] = stats["Away"].apply(normalize_team)
-    if "Winner" in stats.columns:
-        stats["Winner_norm"] = stats["Winner"].apply(normalize_team)
+    # --- Normalize team names in stats dynamically ---
+    lower_cols = [c.lower() for c in stats.columns]
+    def norm_col(colname):
+        return colname if colname in stats.columns else next((c for c in stats.columns if c.lower() == colname.lower()), None)
+
+    home_col = norm_col("Home")
+    away_col = norm_col("Away")
+    winner_col = norm_col("Winner")
+
+    if home_col:
+        stats["Home_norm"] = stats[home_col].apply(normalize_team)
+    if away_col:
+        stats["Away_norm"] = stats[away_col].apply(normalize_team)
+    if winner_col:
+        stats["Winner_norm"] = stats[winner_col].apply(normalize_team)
+
+    if not any(col in stats.columns for col in ["Home_norm", "Away_norm", "Winner_norm"]):
+        print(f"⚠️ Could not find home/away/winner columns in stats file. Columns: {stats.columns.tolist()}")
+        return
 
     merged_rows = []
     for _, row in preds.iterrows():
         t = row["Team1_norm"]
-        # Look for any match as Home, Away, or Winner
-        s = stats[(stats["Home_norm"] == t) | (stats["Away_norm"] == t) | (stats["Winner_norm"] == t)]
+        mask = pd.Series([False] * len(stats))
+        for col in ["Home_norm", "Away_norm", "Winner_norm"]:
+            if col in stats.columns:
+                mask |= stats[col] == t
+        s = stats[mask]
         if not s.empty:
             latest = s.tail(1)
             m = {**row.to_dict()}
