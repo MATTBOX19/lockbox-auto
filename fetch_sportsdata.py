@@ -36,7 +36,7 @@ SPORTS_CONFIG = {
         "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
     },
     "NCAAF": {
-        "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsFinal/{season}/{week}",
+        "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsByWeek/{season}/{week}",
         "season": "2025REG",
         "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
     },
