@@ -7,13 +7,15 @@ Purpose:
   • Computes model accuracy & ROI overall and by sport.
   • Updates rolling metrics.json (history of sessions).
   • Writes per-sport summary to performance.json for dashboard use.
+  • Automatically refreshes Predictions_latest_Explained.csv for website.
 
 Outputs:
   /Output/metrics.json
   /Output/performance.json
+  /Output/Predictions_latest_Explained.csv
 """
 
-import pandas as pd, json
+import pandas as pd, json, shutil
 from pathlib import Path
 from datetime import datetime
 
@@ -126,5 +128,13 @@ if __name__ == "__main__":
         res = analyze_settled(latest)
         if res:
             update_metrics(res)
+
+            # 🔄 Update website file so Flask dashboard shows newest data
+            try:
+                target = OUT_DIR / "Predictions_latest_Explained.csv"
+                shutil.copy(latest, target)
+                print(f"🌐 Updated {target.name} for website display")
+            except Exception as e:
+                print(f"⚠️ Failed to update website file: {e}")
     else:
         print("❌ No settled data available.")
