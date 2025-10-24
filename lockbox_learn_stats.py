@@ -41,9 +41,9 @@ TEAM_MAP = {
     "LAC": ["LOS ANGELES CHARGERS", "CHARGERS"],
     "LAR": ["LOS ANGELES RAMS", "RAMS"],
     "LV": ["LAS VEGAS RAIDERS", "RAIDERS"],
-    "MIA": ["MIAMI DOLPHINS", "DOLPHINS"],
+    "MIA": ["MIAMI DOLPHINS", "DOLPHINS", "FINS"],
     "MIN": ["MINNESOTA VIKINGS", "VIKINGS"],
-    "NE": ["NEW ENGLAND PATRIOTS", "PATRIOTS"],
+    "NE": ["NEW ENGLAND PATRIOTS", "PATRIOTS", "PATS"],
     "NO": ["NEW ORLEANS SAINTS", "SAINTS"],
     "NYG": ["NEW YORK GIANTS", "GIANTS"],
     "NYJ": ["NEW YORK JETS", "JETS"],
@@ -73,7 +73,7 @@ TEAM_MAP = {
     "MEM": ["MEMPHIS GRIZZLIES", "GRIZZLIES"],
     "MIA_NBA": ["MIAMI HEAT", "HEAT"],
     "MIL": ["MILWAUKEE BUCKS", "BUCKS"],
-    "MIN_NBA": ["MINNESOTA TIMBERWOLVES", "TIMBERWOLVES"],
+    "MIN_NBA": ["MINNESOTA TIMBERWOLVES", "TIMBERWOLVES", "WOLVES"],
     "NYK": ["NEW YORK KNICKS", "KNICKS"],
     "OKC": ["OKLAHOMA CITY THUNDER", "THUNDER"],
     "ORL": ["ORLANDO MAGIC", "MAGIC"],
@@ -109,7 +109,7 @@ TEAM_MAP = {
     "PIT_NHL": ["PITTSBURGH PENGUINS", "PENGUINS"],
     "TOR_NHL": ["TORONTO MAPLE LEAFS", "MAPLE LEAFS"],
 
-    # --- NCAAF (partial sample, 130+ supported in full table) ---
+    # --- NCAAF (sample) ---
     "ALA": ["ALABAMA CRIMSON TIDE", "BAMA"],
     "UGA": ["GEORGIA BULLDOGS", "DAWGS"],
     "MICH": ["MICHIGAN WOLVERINES", "WOLVERINES"],
@@ -123,11 +123,16 @@ TEAM_MAP = {
 
 # --- Utility helpers ---
 def normalize_team(t):
+    """Clean and normalize team string to match TEAM_MAP aliases."""
     if not isinstance(t, str):
         return ""
-    t = re.sub(r"[^A-Za-z0-9]", "", t).upper()
+    t = t.strip().upper()
+    t = re.sub(r"\(.*?\)", "", t)             # remove (ATS), (ML), etc
+    t = re.sub(r"[^A-Z0-9]", "", t)           # strip punctuation/spaces
+    t = re.sub(r"(NFL|NBA|MLB|NHL|NCAAF)$", "", t)  # remove sport suffix
     for abbr, aliases in TEAM_MAP.items():
-        if t == abbr or any(t == re.sub(r"[^A-Za-z0-9]", "", a) for a in aliases):
+        clean_aliases = [re.sub(r"[^A-Z0-9]", "", a.upper()) for a in aliases]
+        if t == abbr or t in clean_aliases:
             return abbr
     return t
 
@@ -148,11 +153,7 @@ def main():
     preds.columns = [c.lower().strip() for c in preds.columns]
     stats.columns = [c.lower().strip() for c in stats.columns]
 
-    team_col = None
-    for c in ["bestpick", "team1", "home", "team"]:
-        if c in preds.columns:
-            team_col = c
-            break
+    team_col = next((c for c in ["bestpick", "team1", "home", "team"] if c in preds.columns), None)
     if not team_col:
         print(f"⚠️ No usable team column found. Columns: {list(preds.columns)}")
         return
@@ -160,10 +161,9 @@ def main():
     print(f"✅ Using team column(s): ['{team_col}']")
 
     preds["team_norm"] = preds[team_col].astype(str).apply(normalize_team)
-    stats["team_norm"] = stats["team"].astype(str).apply(normalize_team) if "team" in stats.columns else None
+    stats["team_norm"] = stats["team"].astype(str).apply(normalize_team) if "team" in stats.columns else ""
 
-    merged_rows = []
-    unmatched = set()
+    merged_rows, unmatched = [], set()
 
     for _, row in preds.iterrows():
         t = row["team_norm"]
@@ -189,8 +189,8 @@ def main():
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "games": len(merged),
-        "avg_edge": safe_mean(merged["edge"]) if "edge" in merged else 0,
-        "avg_confidence": safe_mean(merged["confidence"]) if "confidence" in merged else 0,
+        "avg_edge": safe_mean(merged.get("edge", pd.Series(dtype=float))),
+        "avg_confidence": safe_mean(merged.get("confidence", pd.Series(dtype=float))),
         "avg_epa_off": safe_mean(merged.get("epa_off", pd.Series(dtype=float))),
         "avg_epa_def": safe_mean(merged.get("epa_def", pd.Series(dtype=float))),
         "avg_success_off": safe_mean(merged.get("success_off", pd.Series(dtype=float))),
@@ -204,17 +204,14 @@ def main():
 
     perf = {
         "updated": summary["timestamp"],
-        "overall": {
-            "edge": summary["avg_edge"],
-            "confidence": summary["avg_confidence"],
-        },
+        "overall": {"edge": summary["avg_edge"], "confidence": summary["avg_confidence"]},
     }
     with open(PERFORMANCE_FILE, "w") as f:
         json.dump(perf, f, indent=2)
     print("📊 performance.json written")
 
     if unmatched:
-        print(f"⚠️ Unmatched teams ({len(unmatched)}): {sorted(unmatched)[:20]}...")
+        print(f"⚠️ Unmatched teams ({len(unmatched)}): {sorted(list(unmatched))[:20]}...")
 
 if __name__ == "__main__":
     main()
