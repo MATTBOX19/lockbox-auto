@@ -32,13 +32,13 @@ OUT_FILE = DATA_DIR / "team_stats_latest.csv"
 SPORTS_CONFIG = {
     "NFL": {
         "endpoint": "https://api.sportsdata.io/v3/nfl/stats/json/TeamGameStatsByWeek/{season}/{week}",
-        "season": "2024REG",
-        "weeks": [1, 2, 3, 4, 5, 6, 7, 8]  # you can adjust this to backfill more
+        "season": "2025REG",
+        "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9]  # you can adjust this to backfill more
     },
     "NCAAF": {
         "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsByWeek/{season}/{week}",
-        "season": "2024REG",
-        "weeks": [1, 2, 3, 4, 5, 6, 7, 8],
+        "season": "2025REG",
+        "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
     },
     "NBA": {
         "endpoint": "https://api.sportsdata.io/v3/nba/stats/json/TeamGameStatsByDate/{date}",
