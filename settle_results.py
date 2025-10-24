@@ -64,7 +64,7 @@ def fetch_results(api_sport):
     try:
         r = requests.get(
             RESULTS_URL.format(sport=api_sport),
-            params={"apiKey": API_KEY, "daysFrom": 3},
+            params={"apiKey": API_KEY, "daysFrom": 1},
             timeout=15
         )
         if r.status_code != 200:
