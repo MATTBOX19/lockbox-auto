@@ -33,24 +33,24 @@ SPORTS_CONFIG = {
     "NFL": {
         "endpoint": "https://api.sportsdata.io/v3/nfl/stats/json/TeamGameStatsByWeek/{season}/{week}",
         "season": "2024REG",
-        "weeks": [7, 8],  # you can adjust this to backfill more
+        "weeks": [1, 2, 3, 4, 5, 6, 7, 8]  # you can adjust this to backfill more
     },
     "NCAAF": {
         "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsByWeek/{season}/{week}",
         "season": "2024REG",
-        "weeks": [7, 8],
+        "weeks": [1, 2, 3, 4, 5, 6, 7, 8],
     },
     "NBA": {
         "endpoint": "https://api.sportsdata.io/v3/nba/stats/json/TeamGameStatsByDate/{date}",
-        "days": 7,
+        "days": 24,
     },
     "NHL": {
         "endpoint": "https://api.sportsdata.io/v3/nhl/stats/json/TeamGameStatsByDate/{date}",
-        "days": 7,
+        "days": 34,
     },
     "MLB": {
         "endpoint": "https://api.sportsdata.io/v3/mlb/stats/json/TeamGameStatsByDate/{date}",
-        "days": 7,
+        "days": 240,
     },
 }
 
