@@ -33,7 +33,7 @@ SPORTS_CONFIG = {
     "NFL": {
         "endpoint": "https://api.sportsdata.io/v3/nfl/stats/json/TeamGameStatsByWeek/{season}/{week}",
         "season": "2025REG",
-        "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9]  # you can adjust this to backfill more
+        "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
     },
     "NCAAF": {
         "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsByWeek/{season}/{week}",
