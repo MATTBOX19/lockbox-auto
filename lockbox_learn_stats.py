@@ -41,22 +41,25 @@ def main():
     preds.columns = [c.strip() for c in preds.columns]
     stats.columns = [c.strip() for c in stats.columns]
 
-    if "Team1" in preds.columns:
-        preds["Team1_norm"] = preds["Team1"].apply(normalize_team)
-        preds["Team2_norm"] = preds["Team2"].apply(normalize_team)
-    elif "Home" in preds.columns and "Away" in preds.columns:
-        preds["Team1_norm"] = preds["Home"].apply(normalize_team)
-        preds["Team2_norm"] = preds["Away"].apply(normalize_team)
+    # --- Match prediction team columns ---
+    team_cols = [c for c in preds.columns if any(k in c.lower() for k in ["team", "home", "away", "matchup", "pick"])]
+    if len(team_cols) >= 2:
+        preds["Team1_norm"] = preds[team_cols[0]].apply(normalize_team)
+        preds["Team2_norm"] = preds[team_cols[1]].apply(normalize_team)
+        print(f"✅ Using prediction team columns: {team_cols[0]} / {team_cols[1]}")
     else:
-        print("⚠️ No team columns found in predictions file.")
+        print(f"⚠️ No suitable team columns found in predictions file. Columns: {preds.columns.tolist()}")
         return
 
+    # --- Stats side normalization ---
     if "team" in stats.columns:
         stats["team_norm"] = stats["team"].apply(normalize_team)
     elif "Home" in stats.columns:
         stats["team_norm"] = stats["Home"].apply(normalize_team)
+    elif "Team" in stats.columns:
+        stats["team_norm"] = stats["Team"].apply(normalize_team)
     else:
-        print("⚠️ No team column found in stats file.")
+        print(f"⚠️ No team column found in stats file. Columns: {stats.columns.tolist()}")
         return
 
     merged_rows = []
@@ -68,7 +71,7 @@ def main():
         if not s1.empty and not s2.empty:
             m = {**row.to_dict()}
             for prefix, df in zip(["T1_", "T2_"], [s1, s2]):
-                for col in ["HomeYards", "AwayYards", "HomeTurnovers", "AwayTurnovers", "HomePossession"]:
+                for col in ["HomeYards", "AwayYards", "HomeTurnovers", "AwayTurnovers", "HomePossession", "HomeScore", "AwayScore"]:
                     if col in df.columns:
                         m[prefix + col] = float(df[col].iloc[0]) if pd.notna(df[col].iloc[0]) else 0
             merged_rows.append(m)
@@ -89,9 +92,10 @@ def main():
         "games": len(merged),
         "avg_edge": safe_mean(merged["Edge"]),
         "avg_confidence": safe_mean(merged["Confidence"]),
-        "avg_home_yards": safe_mean(merged.get("T1_HomeYards", pd.Series(dtype=float))),
-        "avg_away_yards": safe_mean(merged.get("T2_AwayYards", pd.Series(dtype=float))),
-        "avg_turnovers_diff": safe_mean(merged.get("T1_HomeTurnovers", pd.Series(dtype=float))) - safe_mean(merged.get("T2_AwayTurnovers", pd.Series(dtype=float))),
+        "avg_home_yards": safe_mean(merged.filter(like="HomeYards")),
+        "avg_away_yards": safe_mean(merged.filter(like="AwayYards")),
+        "avg_turnovers_diff": safe_mean(merged.filter(like="HomeTurnovers"))
+            - safe_mean(merged.filter(like="AwayTurnovers")),
     }
 
     with open(METRICS_FILE, "w") as f:
@@ -100,7 +104,11 @@ def main():
 
     perf = {
         "updated": summary["timestamp"],
-        "NFL": {"edge": summary["avg_edge"], "confidence": summary["avg_confidence"], "yards_diff": summary["avg_home_yards"] - summary["avg_away_yards"]},
+        "NFL": {
+            "edge": summary["avg_edge"],
+            "confidence": summary["avg_confidence"],
+            "yards_diff": summary["avg_home_yards"] - summary["avg_away_yards"]
+        },
     }
     with open(PERFORMANCE_FILE, "w") as f:
         json.dump(perf, f, indent=2)
