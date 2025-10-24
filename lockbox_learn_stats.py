@@ -21,6 +21,7 @@ METRICS_FILE = OUT_DIR / "metrics.json"
 PERFORMANCE_FILE = OUT_DIR / "performance.json"
 
 # ------------------ TEAM MAPS ------------------ #
+
 TEAM_MAP = {
     # --- NFL ---
     "ARI": "ARIZONACARDINALS", "ATL": "ATLANTAFALCONS", "BAL": "BALTIMORERAVENS",
@@ -31,9 +32,29 @@ TEAM_MAP = {
     "KC": "KANSASCITYCHIEFS", "LV": "LASVEGASRAIDERS", "LAC": "LACHARGERS",
     "LAR": "LARAMS", "MIA": "MIAMIDOLPHINS", "MIN": "MINNESOTAVIKINGS",
     "NE": "NEWENGLANDPATRIOTS", "NO": "NEWORLEANSSAINTS", "NYG": "NEWYORKGIANTS",
-    "NYJ": "NEWYORKJETS", "PHI": "PHILADELPHIAEAGLES", "PIT": "PITTSBURGHS",
+    "NYJ": "NEWYORKJETS", "PHI": "PHILADELPHIAEAGLES", "PIT": "PITTSBURGHSTEELERS",
     "SEA": "SEATTLESEAHAWKS", "SF": "SANFRANCISCO49ERS", "TB": "TAMPABAYBUCCANEERS",
     "TEN": "TENNESSEETITANS", "WAS": "WASHINGTONCOMMANDERS",
+
+    # --- NCAAF (Top 50 programs + common) ---
+    "ALABAMA": "ALABAMACRIMSONTIDE", "GEORGIA": "GEORGIABULLDOGS", "LSU": "LSUTIGERS",
+    "TEXAS": "TEXASLONGHORNS", "OKLAHOMA": "OKLAHOMASOONERS", "OHIOSTATE": "OHIOSTATEBUCKEYES",
+    "MICHIGAN": "MICHIGANWOLVERINES", "FLORIDA": "FLORIDAGATORS", "FLORIDAST": "FLORIDASTATESEMINOLES",
+    "MIAMIFL": "MIAMIHURRICANES", "NOTREDAME": "NOTREDAMEFIGHTINGIRISH", "USC": "USCTROJANS",
+    "UCLA": "UCLABRUINS", "OREGON": "OREGONDUCKS", "WASHINGTON": "WASHINGTONHUSKIES",
+    "AUBURN": "AUBURNTIGERS", "TEXASA&M": "TEXASAMAGGIES", "TENNESSEE": "TENNESSEEVOLUNTEERS",
+    "CLEMSON": "CLEMSONTIGERS", "PENNSTATE": "PENNSTATENITTANYLIONS",
+    "WISCONSIN": "WISCONSINBADGERS", "IOWA": "IOWAHAWKEYES", "MINNESOTA": "MINNESOTAGO PHERS",
+    "ILLINOIS": "ILLINOISFIGHTINGILLINI", "PURDUE": "PURDUEBOILERMAKERS",
+    "BAYLOR": "BAYLORBEARS", "TCU": "TCUHORNFROGS", "TEXASTECH": "TEXASTECHREDRAIDERS",
+    "OKSTATE": "OKLAHOMASTATECOWBOYS", "KANSAS": "KANSASJAYHAWKS", "KANSASSTATE": "KANSASSTATEWILDCATS",
+    "NEBRASKA": "NEBRASKACORN HUSKERS", "COLORADO": "COLORADOBUFFALOES", "UTAH": "UTAHRUNNINUTES",
+    "ARIZONAST": "ARIZONASTATESUNDEVILS", "ARIZONA": "ARIZONAWILDCATS",
+    "BOISESTATE": "BOISESTATEBRONCOS", "SMU": "SMUMUSTANGS", "UCF": "UCFFKNIGHTS",
+    "CINCINNATI": "CINCINNATIBEARCATS", "LOUISVILLE": "LOUISVILLECARDINALS",
+    "KENTUCKY": "KENTUCKYWILDCATS", "MISSOURI": "MISSOURITIGERS",
+    "OLEMISS": "OLEMISSREBELS", "MISSISSIPPISTATE": "MISSISSIPPISTATBULLDOGS",
+    "SOUTHCAROLINA": "SOUTHCAROLINAGAMECOCKS", "VANDERBILT": "VANDERBILTCOMMODORES",
 
     # --- NBA ---
     "ATLANTAHAWKS": "ATLANTAHAWKS", "BOSTONCELTICS": "BOSTONCELTICS",
@@ -61,30 +82,33 @@ TEAM_MAP = {
     "FLORIDAPANTHERS": "FLORIDAPANTHERS", "LOSANGELESKINGS": "LOSANGELESKINGS",
     "MINNESOTAWILD": "MINNESOTAWILD", "MONTREALCANADIENS": "MONTREALCANADIENS",
     "NASHVILLEPREDATORS": "NASHVILLEPREDATORS", "NEWJERSEYDEVILS": "NEWJERSEYDEVILS",
-    "NYISLANDERS": "NYISLANDERS", "NYRANGERS": "NYRANGERS",
-    "OTTAWASENATORS": "OTTAWASENATORS", "PHILADELPHIAFLYERS": "PHILADELPHIAFLYERS",
-    "PITTSBURGH": "PITTSBURGH", "SANJOSESHARKS": "SANJOSESHARKS",
-    "SEATTLEKRAKEN": "SEATTLEKRAKEN", "STLOUISBLUES": "STLOUISBLUES",
-    "TAMPABAYLIGHTNING": "TAMPABAYLIGHTNING", "TORONTOMAPLELEAFS": "TORONTOMAPLELEAFS",
-    "VANCOUVERCANUCKS": "VANCOUVERCANUCKS", "VEGASGOLDENKNIGHTS": "VEGASGOLDENKNIGHTS",
-    "WASHINGTONCAPITALS": "WASHINGTONCAPITALS", "WINNIPEGJETS": "WINNIPEGJETS",
+    "NYISLANDERS": "NYISLANDERS", "NYRANGERS": "NYRANGERS", "OTTAWASENATORS": "OTTAWASENATORS",
+    "PHILADELPHIAFLYERS": "PHILADELPHIAFLYERS", "PITTSBURGH": "PITTSBURGH",
+    "SANJOSESHARKS": "SANJOSESHARKS", "SEATTLEKRAKEN": "SEATTLEKRAKEN",
+    "STLOUISBLUES": "STLOUISBLUES", "TAMPABAYLIGHTNING": "TAMPABAYLIGHTNING",
+    "TORONTOMAPLELEAFS": "TORONTOMAPLELEAFS", "VANCOUVERCANUCKS": "VANCOUVERCANUCKS",
+    "VEGASGOLDENKNIGHTS": "VEGASGOLDENKNIGHTS", "WASHINGTONCAPITALS": "WASHINGTONCAPITALS",
+    "WINNIPEGJETS": "WINNIPEGJETS",
 
     # --- MLB ---
     "ARIZONADIAMONDBACKS": "ARIZONADIAMONDBACKS", "ATLANTABRAVES": "ATLANTABRAVES",
-    "BALTIMOREORIOLES": "BALTIMOREORIOLES", "BOSTONRED": "BOSTONRED", "CHICAGOCUBS": "CHICAGOCUBS",
-    "CHICAGO": "CHICAGO", "CINCINNATIREDS": "CINCINNATIREDS", "CLEVELANDGUARDIANS": "CLEVELANDGUARDIANS",
-    "COLORADOROCKIES": "COLORADOROCKIES", "DETROITTIGERS": "DETROITTIGERS", "HOUSTONASTROS": "HOUSTONASTROS",
-    "KANSASCITYROYALS": "KANSASCITYROYALS", "LAANGELS": "LAANGELS", "LADODGERS": "LADODGERS",
-    "MIAMIMARLINS": "MIAMIMARLINS", "MILWAUKEEBREWERS": "MILWAUKEEBREWERS",
-    "MINNESOTATWINS": "MINNESOTATWINS", "NYMETS": "NYMETS", "NYYANKEES": "NYYANKEES",
-    "OAKLANDATHLETICS": "OAKLANDATHLETICS", "PHILADELPHIAPHILLIES": "PHILADELPHIAPHILLIES",
-    "PITTSBURGH": "PITTSBURGH", "SANFRANCISCOGIANTS": "SANFRANCISCOGIANTS",
-    "SEATTLEMARINERS": "SEATTLEMARINERS", "STLOUISCARDINALS": "STLOUISCARDINALS",
-    "TAMPABAYRAYS": "TAMPABAYRAYS", "TEXASRANGERS": "TEXASRANGERS",
-    "TORONTOBLUEJAYS": "TORONTOBLUEJAYS", "WASHINGTONNATIONALS": "WASHINGTONNATIONALS",
+    "BALTIMOREORIOLES": "BALTIMOREORIOLES", "BOSTONRED": "BOSTONRED",
+    "CHICAGOCUBS": "CHICAGOCUBS", "CHICAGO": "CHICAGO", "CINCINNATIREDS": "CINCINNATIREDS",
+    "CLEVELANDGUARDIANS": "CLEVELANDGUARDIANS", "COLORADOROCKIES": "COLORADOROCKIES",
+    "DETROITTIGERS": "DETROITTIGERS", "HOUSTONASTROS": "HOUSTONASTROS",
+    "KANSASCITYROYALS": "KANSASCITYROYALS", "LAANGELS": "LAANGELS",
+    "LADODGERS": "LADODGERS", "MIAMIMARLINS": "MIAMIMARLINS",
+    "MILWAUKEEBREWERS": "MILWAUKEEBREWERS", "MINNESOTATWINS": "MINNESOTATWINS",
+    "NYMETS": "NYMETS", "NYYANKEES": "NYYANKEES", "OAKLANDATHLETICS": "OAKLANDATHLETICS",
+    "PHILADELPHIAPHILLIES": "PHILADELPHIAPHILLIES", "PITTSBURGH": "PITTSBURGH",
+    "SANFRANCISCOGIANTS": "SANFRANCISCOGIANTS", "SEATTLEMARINERS": "SEATTLEMARINERS",
+    "STLOUISCARDINALS": "STLOUISCARDINALS", "TAMPABAYRAYS": "TAMPABAYRAYS",
+    "TEXASRANGERS": "TEXASRANGERS", "TORONTOBLUEJAYS": "TORONTOBLUEJAYS",
+    "WASHINGTONNATIONALS": "WASHINGTONNATIONALS",
 }
 
 # ------------------ HELPERS ------------------ #
+
 def safe_mean(series):
     try:
         return round(series.dropna().astype(float).mean(), 3)
@@ -98,6 +122,7 @@ def normalize_team(t):
     return TEAM_MAP.get(key, key)
 
 # ------------------ MAIN ------------------ #
+
 def main():
     if not PRED_FILE.exists() or not STATS_FILE.exists():
         print("❌ Missing required files for learning.")
@@ -109,7 +134,13 @@ def main():
     preds.columns = [c.strip().lower() for c in preds.columns]
     stats.columns = [c.strip().lower() for c in stats.columns]
 
-    # --- Normalize prediction teams --- #
+    # Detect sport
+    sport_col = "sport" if "sport" in preds.columns else None
+    if sport_col:
+        sports = preds[sport_col].unique()
+        print(f"📊 Sports detected in predictions: {sports}")
+
+    # Normalize prediction teams
     team_cols = [c for c in preds.columns if c in ["team1", "team2", "home", "away", "bestpick"]]
     if not team_cols:
         print(f"⚠️ No suitable team columns found in predictions file. Columns: {list(preds.columns)}")
@@ -118,7 +149,7 @@ def main():
     for c in team_cols:
         preds[c + "_norm"] = preds[c].apply(normalize_team)
 
-    # --- Normalize stat teams --- #
+    # Normalize stats
     if "team" in stats.columns:
         stats["team_norm"] = stats["team"].apply(normalize_team)
     elif "home" in stats.columns:
@@ -129,12 +160,13 @@ def main():
 
     merged_rows = []
     for _, row in preds.iterrows():
+        sport = row.get("sport", "UNKNOWN").upper()
         possible_teams = [row.get(c + "_norm", "") for c in ["team1", "team2", "home", "away", "bestpick"]]
         possible_teams = [t for t in possible_teams if t]
         for t in possible_teams:
             s = stats[stats["team_norm"] == t]
             if not s.empty:
-                m = {**row.to_dict()}
+                m = {**row.to_dict(), "sport": sport}
                 for col in ["epa_off", "success_off", "epa_def", "success_def", "pace"]:
                     if col in s.columns:
                         m[col] = float(s[col].iloc[-1])
@@ -148,6 +180,7 @@ def main():
     merged = pd.DataFrame(merged_rows)
     print(f"✅ Merged {len(merged)} predictions with team stat records")
 
+    # Aggregated metrics
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "games": len(merged),
@@ -166,7 +199,7 @@ def main():
 
     perf = {
         "updated": summary["timestamp"],
-        "all_sports": {
+        "combined": {
             "edge": summary["avg_edge"],
             "confidence": summary["avg_confidence"],
             "epa_off": summary["avg_epa_off"],
@@ -174,6 +207,7 @@ def main():
             "pace": summary["avg_pace"]
         },
     }
+
     with open(PERFORMANCE_FILE, "w") as f:
         json.dump(perf, f, indent=2)
     print("📊 performance.json written")
