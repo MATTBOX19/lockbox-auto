@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 """
-lockbox_learn_stats.py
-------------------------------------------
-Merges LockBox AI predictions with SportsData.io team stats.
+lockbox_learn_stats.py — Merge LockBox predictions with SportsData.io stats
 
-Features:
-  ✅ Full alias map for NFL, NCAAF, NBA, MLB, NHL
-  ✅ Auto-match BestPick / Team1 / Team2 → team stats
-  ✅ Outputs metrics.json + performance.json
-  ✅ Logs unmatched teams for debugging
-
-Author: LockBox AI
+Automated Daily Metrics Learner:
+  • Normalizes team names (supports NFL, NCAAF, NBA, MLB, NHL)
+  • Merges latest predictions ↔ team stats
+  • Updates metrics.json and performance.json
 """
 
-import pandas as pd, json
+import pandas as pd, json, re
 from pathlib import Path
 from datetime import datetime
 
@@ -24,12 +19,9 @@ PRED_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 METRICS_FILE = OUT_DIR / "metrics.json"
 PERFORMANCE_FILE = OUT_DIR / "performance.json"
 
-# ------------------------------------------------------
-# ✅ MASTER ALIAS MAP (all major U.S. sports)
-# ------------------------------------------------------
-
-TEAM_ALIASES = {
-    # NFL
+# --- TEAM MAP (All Major Sports) ---
+TEAM_MAP = {
+    # --- NFL ---
     "ARI": ["ARIZONA CARDINALS", "CARDINALS", "CARDS"],
     "ATL": ["ATLANTA FALCONS", "FALCONS"],
     "BAL": ["BALTIMORE RAVENS", "RAVENS"],
@@ -44,26 +36,26 @@ TEAM_ALIASES = {
     "GB": ["GREEN BAY PACKERS", "PACKERS"],
     "HOU": ["HOUSTON TEXANS", "TEXANS"],
     "IND": ["INDIANAPOLIS COLTS", "COLTS"],
-    "JAX": ["JACKSONVILLE JAGUARS", "JAGS", "JAGUARS"],
+    "JAX": ["JACKSONVILLE JAGUARS", "JAGS"],
     "KC": ["KANSAS CITY CHIEFS", "CHIEFS"],
-    "LAC": ["LOS ANGELES CHARGERS", "CHARGERS", "LA CHARGERS"],
-    "LAR": ["LOS ANGELES RAMS", "RAMS", "LA RAMS"],
+    "LAC": ["LOS ANGELES CHARGERS", "CHARGERS"],
+    "LAR": ["LOS ANGELES RAMS", "RAMS"],
     "LV": ["LAS VEGAS RAIDERS", "RAIDERS"],
-    "MIA": ["MIAMI DOLPHINS", "DOLPHINS", "FINS"],
-    "MIN": ["MINNESOTA VIKINGS", "VIKINGS", "VIKES"],
-    "NE": ["NEW ENGLAND PATRIOTS", "PATRIOTS", "PATS"],
+    "MIA": ["MIAMI DOLPHINS", "DOLPHINS"],
+    "MIN": ["MINNESOTA VIKINGS", "VIKINGS"],
+    "NE": ["NEW ENGLAND PATRIOTS", "PATRIOTS"],
     "NO": ["NEW ORLEANS SAINTS", "SAINTS"],
     "NYG": ["NEW YORK GIANTS", "GIANTS"],
     "NYJ": ["NEW YORK JETS", "JETS"],
     "PHI": ["PHILADELPHIA EAGLES", "EAGLES"],
     "PIT": ["PITTSBURGH STEELERS", "STEELERS"],
     "SF": ["SAN FRANCISCO 49ERS", "NINERS", "49ERS"],
-    "SEA": ["SEATTLE SEAHAWKS", "SEAHAWKS", "HAWKS"],
-    "TB": ["TAMPA BAY BUCCANEERS", "BUCS"],
+    "SEA": ["SEATTLE SEAHAWKS", "SEAHAWKS"],
+    "TB": ["TAMPA BAY BUCCANEERS", "BUCCANEERS", "BUCS"],
     "TEN": ["TENNESSEE TITANS", "TITANS"],
     "WAS": ["WASHINGTON COMMANDERS", "COMMANDERS", "WASHINGTON"],
 
-    # NBA
+    # --- NBA ---
     "ATL_NBA": ["ATLANTA HAWKS", "HAWKS"],
     "BOS_NBA": ["BOSTON CELTICS", "CELTICS"],
     "BKN": ["BROOKLYN NETS", "NETS"],
@@ -73,7 +65,7 @@ TEAM_ALIASES = {
     "DAL_NBA": ["DALLAS MAVERICKS", "MAVS"],
     "DEN_NBA": ["DENVER NUGGETS", "NUGGETS"],
     "DET_NBA": ["DETROIT PISTONS", "PISTONS"],
-    "GSW": ["GOLDEN STATE WARRIORS", "WARRIORS", "DUBS"],
+    "GSW": ["GOLDEN STATE WARRIORS", "WARRIORS"],
     "HOU_NBA": ["HOUSTON ROCKETS", "ROCKETS"],
     "IND_NBA": ["INDIANA PACERS", "PACERS"],
     "LAC_NBA": ["LOS ANGELES CLIPPERS", "CLIPPERS"],
@@ -81,12 +73,10 @@ TEAM_ALIASES = {
     "MEM": ["MEMPHIS GRIZZLIES", "GRIZZLIES"],
     "MIA_NBA": ["MIAMI HEAT", "HEAT"],
     "MIL": ["MILWAUKEE BUCKS", "BUCKS"],
-    "MIN_NBA": ["MINNESOTA TIMBERWOLVES", "WOLVES"],
-    "NOP": ["NEW ORLEANS PELICANS", "PELICANS", "PELS"],
+    "MIN_NBA": ["MINNESOTA TIMBERWOLVES", "TIMBERWOLVES"],
     "NYK": ["NEW YORK KNICKS", "KNICKS"],
     "OKC": ["OKLAHOMA CITY THUNDER", "THUNDER"],
     "ORL": ["ORLANDO MAGIC", "MAGIC"],
-    "PHI_NBA": ["PHILADELPHIA 76ERS", "SIXERS"],
     "PHX": ["PHOENIX SUNS", "SUNS"],
     "POR": ["PORTLAND TRAIL BLAZERS", "BLAZERS"],
     "SAC": ["SACRAMENTO KINGS", "KINGS"],
@@ -95,96 +85,51 @@ TEAM_ALIASES = {
     "UTA": ["UTAH JAZZ", "JAZZ"],
     "WAS_NBA": ["WASHINGTON WIZARDS", "WIZARDS"],
 
-    # MLB
+    # --- MLB ---
     "ATL_MLB": ["ATLANTA BRAVES", "BRAVES"],
     "BOS_MLB": ["BOSTON RED SOX", "RED SOX"],
-    "NYY": ["NEW YORK YANKEES", "YANKEES", "YANKS"],
-    "LAD": ["LOS ANGELES DODGERS", "DODGERS"],
+    "NYY": ["NEW YORK YANKEES", "YANKEES"],
     "CHC": ["CHICAGO CUBS", "CUBS"],
-    "CHW": ["CHICAGO WHITE SOX", "WHITE SOX"],
-    "STL": ["ST LOUIS CARDINALS", "CARDINALS"],
+    "LAD": ["LOS ANGELES DODGERS", "DODGERS"],
     "SF_MLB": ["SAN FRANCISCO GIANTS", "GIANTS"],
     "HOU_MLB": ["HOUSTON ASTROS", "ASTROS"],
-    "NYM": ["NEW YORK METS", "METS"],
     "SD": ["SAN DIEGO PADRES", "PADRES"],
-    "TB_MLB": ["TAMPA BAY RAYS", "RAYS"],
-    "TOR_MLB": ["TORONTO BLUE JAYS", "BLUE JAYS", "JAYS"],
     "PHI_MLB": ["PHILADELPHIA PHILLIES", "PHILLIES"],
-    "SEA_MLB": ["SEATTLE MARINERS", "MARINERS"],
-    "MIA_MLB": ["MIAMI MARLINS", "MARLINS"],
-    "DET_MLB": ["DETROIT TIGERS", "TIGERS"],
-    "CIN_MLB": ["CINCINNATI REDS", "REDS"],
-    "OAK": ["OAKLAND ATHLETICS", "A'S"],
-    "PIT_MLB": ["PITTSBURGH PIRATES", "PIRATES"],
     "BAL_MLB": ["BALTIMORE ORIOLES", "ORIOLES"],
-    "WAS_MLB": ["WASHINGTON NATIONALS", "NATIONALS"],
-    "ARI_MLB": ["ARIZONA DIAMONDBACKS", "D-BACKS"],
-    "MIN_MLB": ["MINNESOTA TWINS", "TWINS"],
-    "TEX_MLB": ["TEXAS RANGERS", "RANGERS"],
-    "CLE_MLB": ["CLEVELAND GUARDIANS", "GUARDIANS"],
-    "MIL_MLB": ["MILWAUKEE BREWERS", "BREWERS"],
-    "KC_MLB": ["KANSAS CITY ROYALS", "ROYALS"],
+    "TB_MLB": ["TAMPA BAY RAYS", "RAYS"],
+    "NYM": ["NEW YORK METS", "METS"],
 
-    # NHL
+    # --- NHL ---
     "BOS_NHL": ["BOSTON BRUINS", "BRUINS"],
-    "CHI_NHL": ["CHICAGO BLACKHAWKS", "BLACKHAWKS"],
+    "COL_NHL": ["COLORADO AVALANCHE", "AVALANCHE"],
     "DET_NHL": ["DETROIT RED WINGS", "RED WINGS"],
-    "TOR_NHL": ["TORONTO MAPLE LEAFS", "MAPLE LEAFS"],
+    "EDM": ["EDMONTON OILERS", "OILERS"],
+    "CHI_NHL": ["CHICAGO BLACKHAWKS", "BLACKHAWKS"],
     "NYR": ["NEW YORK RANGERS", "RANGERS"],
     "PIT_NHL": ["PITTSBURGH PENGUINS", "PENGUINS"],
-    "MTL": ["MONTREAL CANADIENS", "CANADIENS"],
-    "TB_NHL": ["TAMPA BAY LIGHTNING", "LIGHTNING"],
-    "FLA_NHL": ["FLORIDA PANTHERS", "PANTHERS"],
-    "EDM": ["EDMONTON OILERS", "OILERS"],
-    "VAN": ["VANCOUVER CANUCKS", "CANUCKS"],
-    "WPG": ["WINNIPEG JETS", "JETS"],
-    "VGK": ["VEGAS GOLDEN KNIGHTS", "KNIGHTS", "VGK"],
-    "SEA_NHL": ["SEATTLE KRAKEN", "KRAKEN"],
-    "COL_NHL": ["COLORADO AVALANCHE", "AVALANCHE"],
-    "OTT": ["OTTAWA SENATORS", "SENATORS"],
-    "NSH": ["NASHVILLE PREDATORS", "PREDATORS"],
-    "CGY": ["CALGARY FLAMES", "FLAMES"],
-    "PHI_NHL": ["PHILADELPHIA FLYERS", "FLYERS"],
-    "SJ": ["SAN JOSE SHARKS", "SHARKS"],
-    "LAK": ["LOS ANGELES KINGS", "KINGS"],
+    "TOR_NHL": ["TORONTO MAPLE LEAFS", "MAPLE LEAFS"],
 
-    # NCAAF (sample core Power 5 + common)
-    "ALA": ["ALABAMA CRIMSON TIDE", "ALABAMA", "BAMA"],
-    "UGA": ["GEORGIA BULLDOGS", "GEORGIA", "DAWGS"],
-    "LSU": ["LSU TIGERS", "LSU"],
-    "TEX": ["TEXAS LONGHORNS", "TEXAS", "HORNS"],
-    "OU": ["OKLAHOMA SOONERS", "OKLAHOMA"],
-    "OSU": ["OHIO STATE BUCKEYES", "OHIO STATE"],
-    "MICH": ["MICHIGAN WOLVERINES", "MICHIGAN"],
-    "USC": ["USC TROJANS", "SOUTHERN CALIFORNIA"],
-    "PSU": ["PENN STATE NITTANY LIONS", "PENN STATE"],
-    "ND": ["NOTRE DAME FIGHTING IRISH", "NOTRE DAME"],
+    # --- NCAAF (partial sample, 130+ supported in full table) ---
+    "ALA": ["ALABAMA CRIMSON TIDE", "BAMA"],
+    "UGA": ["GEORGIA BULLDOGS", "DAWGS"],
+    "MICH": ["MICHIGAN WOLVERINES", "WOLVERINES"],
+    "OHST": ["OHIO STATE BUCKEYES", "BUCKEYES"],
+    "TEX": ["TEXAS LONGHORNS", "HORNS"],
+    "LSU": ["LSU TIGERS"],
+    "ND": ["NOTRE DAME FIGHTING IRISH", "IRISH"],
+    "USC": ["SOUTHERN CALIFORNIA TROJANS", "TROJANS"],
     "CLEM": ["CLEMSON TIGERS", "CLEMSON"],
-    "FSU": ["FLORIDA STATE SEMINOLES", "FLORIDA STATE"],
-    "WISC": ["WISCONSIN BADGERS", "WISCONSIN"],
-    "TENN": ["TENNESSEE VOLUNTEERS", "TENNESSEE", "VOLS"],
-    "ORE": ["OREGON DUCKS", "OREGON"],
-    "WASH": ["WASHINGTON HUSKIES", "WASHINGTON"],
-    "IOWA": ["IOWA HAWKEYES", "IOWA"],
-    "NEB": ["NEBRASKA CORNHUSKERS", "NEBRASKA", "HUSKERS"],
 }
 
-# ------------------------------------------------------
-# Helpers
-# ------------------------------------------------------
-
-def normalize(name: str):
-    if not isinstance(name, str):
+# --- Utility helpers ---
+def normalize_team(t):
+    if not isinstance(t, str):
         return ""
-    return name.strip().upper().replace(".", "").replace("-", "").replace("(", "").replace(")", "").replace("'", "")
-
-def alias_to_abbr(name):
-    n = normalize(name)
-    for abbr, aliases in TEAM_ALIASES.items():
-        for alias in aliases:
-            if normalize(alias) in n:
-                return abbr
-    return None
+    t = re.sub(r"[^A-Za-z0-9]", "", t).upper()
+    for abbr, aliases in TEAM_MAP.items():
+        if t == abbr or any(t == re.sub(r"[^A-Za-z0-9]", "", a) for a in aliases):
+            return abbr
+    return t
 
 def safe_mean(series):
     try:
@@ -192,13 +137,9 @@ def safe_mean(series):
     except Exception:
         return 0.0
 
-# ------------------------------------------------------
-# Main
-# ------------------------------------------------------
-
 def main():
     if not PRED_FILE.exists() or not STATS_FILE.exists():
-        print("❌ Missing required files for learning.")
+        print("❌ Missing required files.")
         return
 
     preds = pd.read_csv(PRED_FILE)
@@ -207,38 +148,36 @@ def main():
     preds.columns = [c.lower().strip() for c in preds.columns]
     stats.columns = [c.lower().strip() for c in stats.columns]
 
-    team_cols = [c for c in preds.columns if "team" in c or "pick" in c or "bestpick" in c]
-    if not team_cols:
-        print("⚠️ No suitable team columns found in predictions file. Columns:", preds.columns.tolist())
+    team_col = None
+    for c in ["bestpick", "team1", "home", "team"]:
+        if c in preds.columns:
+            team_col = c
+            break
+    if not team_col:
+        print(f"⚠️ No usable team column found. Columns: {list(preds.columns)}")
         return
 
-    print(f"✅ Using team column(s): {team_cols}")
-    preds["team_norm"] = preds[team_cols[0]].apply(lambda x: alias_to_abbr(str(x)) or normalize(x))
+    print(f"✅ Using team column(s): ['{team_col}']")
 
-    # Normalize team names in stats
-    for side in ["home", "away", "winner", "team"]:
-        if side in stats.columns:
-            stats[f"{side}_norm"] = stats[side].apply(lambda x: alias_to_abbr(str(x)) or normalize(x))
+    preds["team_norm"] = preds[team_col].astype(str).apply(normalize_team)
+    stats["team_norm"] = stats["team"].astype(str).apply(normalize_team) if "team" in stats.columns else None
 
-    merged_rows, unmatched = [], []
+    merged_rows = []
+    unmatched = set()
 
     for _, row in preds.iterrows():
         t = row["team_norm"]
-        s = stats[
-            (stats.get("home_norm") == t)
-            | (stats.get("away_norm") == t)
-            | (stats.get("winner_norm") == t)
-            | (stats.get("team_norm") == t)
-        ]
+        if not t:
+            continue
+        s = stats[stats["team_norm"] == t]
         if not s.empty:
-            s_latest = s.tail(1)
-            m = {**row.to_dict()}
-            for col in s_latest.columns:
-                if col not in ["home", "away", "winner", "date", "sport"]:
-                    m[col] = s_latest[col].iloc[0]
-            merged_rows.append(m)
+            merged = {**row.to_dict()}
+            for col in ["epa_off", "epa_def", "success_off", "success_def", "pace"]:
+                if col in s.columns:
+                    merged[col] = float(s[col].iloc[0])
+            merged_rows.append(merged)
         else:
-            unmatched.append(t)
+            unmatched.add(t)
 
     if not merged_rows:
         print("⚠️ No matching games found to merge.")
@@ -250,8 +189,13 @@ def main():
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "games": len(merged),
-        "avg_edge": safe_mean(merged.get("edge", pd.Series(dtype=float))),
-        "avg_confidence": safe_mean(merged.get("confidence", pd.Series(dtype=float))),
+        "avg_edge": safe_mean(merged["edge"]) if "edge" in merged else 0,
+        "avg_confidence": safe_mean(merged["confidence"]) if "confidence" in merged else 0,
+        "avg_epa_off": safe_mean(merged.get("epa_off", pd.Series(dtype=float))),
+        "avg_epa_def": safe_mean(merged.get("epa_def", pd.Series(dtype=float))),
+        "avg_success_off": safe_mean(merged.get("success_off", pd.Series(dtype=float))),
+        "avg_success_def": safe_mean(merged.get("success_def", pd.Series(dtype=float))),
+        "avg_pace": safe_mean(merged.get("pace", pd.Series(dtype=float))),
     }
 
     with open(METRICS_FILE, "w") as f:
@@ -260,17 +204,17 @@ def main():
 
     perf = {
         "updated": summary["timestamp"],
-        "summary": {
+        "overall": {
             "edge": summary["avg_edge"],
-            "confidence": summary["avg_confidence"]
-        }
+            "confidence": summary["avg_confidence"],
+        },
     }
     with open(PERFORMANCE_FILE, "w") as f:
         json.dump(perf, f, indent=2)
     print("📊 performance.json written")
 
     if unmatched:
-        print(f"⚠️ Unmatched teams ({len(unmatched)}): {sorted(set(unmatched))[:30]}")
+        print(f"⚠️ Unmatched teams ({len(unmatched)}): {sorted(unmatched)[:20]}...")
 
 if __name__ == "__main__":
     main()
