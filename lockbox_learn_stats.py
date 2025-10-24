@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-lockbox_learn_stats.py — Merge LockBox predictions with SportsData.io team stats
+lockbox_learn_stats.py — Combine LockBox predictions with SportsData.io stats
 
 Purpose:
-  • Join LockBox picks with single-team stat data (EPA, success, pace, etc.)
-  • Normalize team names and compute averages.
+  • Merge AI predictions with real game + stat data.
+  • Learn which team-level metrics correlate with outcomes.
   • Update metrics.json and performance.json for dashboard display.
+  • Supports NFL, NCAAF, NBA, NHL, and MLB.
 """
 
 import pandas as pd, json
@@ -19,32 +20,84 @@ PRED_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 METRICS_FILE = OUT_DIR / "metrics.json"
 PERFORMANCE_FILE = OUT_DIR / "performance.json"
 
-# --- TEAM MAP (for normalization) ---
+# ------------------ TEAM MAPS ------------------ #
 TEAM_MAP = {
-    "VIKINGS": "MIN", "CHARGERS": "LAC", "COWBOYS": "DAL", "EAGLES": "PHI", "CHIEFS": "KC",
-    "BILLS": "BUF", "PACKERS": "GB", "JETS": "NYJ", "GIANTS": "NYG", "BEARS": "CHI",
-    "LIONS": "DET", "DOLPHINS": "MIA", "PATRIOTS": "NE", "RAIDERS": "LV", "BRONCOS": "DEN",
-    "RAVENS": "BAL", "BENGALS": "CIN", "STEELERS": "PIT", "TEXANS": "HOU", "COLTS": "IND",
-    "TITANS": "TEN", "SAINTS": "NO", "FALCONS": "ATL", "BUCCANEERS": "TB", "JAGUARS": "JAX",
-    "COMMANDERS": "WSH", "49ERS": "SF", "SEAHAWKS": "SEA", "CARDINALS": "ARI", "RAMS": "LAR",
-    "PANTHERS": "CAR",
+    # --- NFL ---
+    "ARI": "ARIZONACARDINALS", "ATL": "ATLANTAFALCONS", "BAL": "BALTIMORERAVENS",
+    "BUF": "BUFFALOBILLS", "CAR": "CAROLINAPANTHERS", "CHI": "CHICAGOBEARS",
+    "CIN": "CINCINNATIBENGALS", "CLE": "CLEVELANDBROWNS", "DAL": "DALLASCOWBOYS",
+    "DEN": "DENVERBRONCOS", "DET": "DETROITLIONS", "GB": "GREENBAYPACKERS",
+    "HOU": "HOUSTONTEXANS", "IND": "INDIANAPOLISCOLTS", "JAX": "JACKSONVILLEJAGUARS",
+    "KC": "KANSASCITYCHIEFS", "LV": "LASVEGASRAIDERS", "LAC": "LACHARGERS",
+    "LAR": "LARAMS", "MIA": "MIAMIDOLPHINS", "MIN": "MINNESOTAVIKINGS",
+    "NE": "NEWENGLANDPATRIOTS", "NO": "NEWORLEANSSAINTS", "NYG": "NEWYORKGIANTS",
+    "NYJ": "NEWYORKJETS", "PHI": "PHILADELPHIAEAGLES", "PIT": "PITTSBURGHS",
+    "SEA": "SEATTLESEAHAWKS", "SF": "SANFRANCISCO49ERS", "TB": "TAMPABAYBUCCANEERS",
+    "TEN": "TENNESSEETITANS", "WAS": "WASHINGTONCOMMANDERS",
+
+    # --- NBA ---
+    "ATLANTAHAWKS": "ATLANTAHAWKS", "BOSTONCELTICS": "BOSTONCELTICS",
+    "BROOKLYNNETS": "BROOKLYNNETS", "CHARLOTTESHORNETS": "CHARLOTTESHORNETS",
+    "CHICAGOBULLS": "CHICAGOBULLS", "CLEVELANDCAVALIERS": "CLEVELANDCAVALIERS",
+    "DALLASMAVERICKS": "DALLASMAVERICKS", "DENVERNUGGETS": "DENVERNUGGETS",
+    "DETROITPISTONS": "DETROITPISTONS", "GOLDENSTATEWARRIORS": "GOLDENSTATEWARRIORS",
+    "HOUSTONROCKETS": "HOUSTONROCKETS", "INDIANAPACERS": "INDIANAPACERS",
+    "LACLIPPERS": "LACLIPPERS", "LALAKERS": "LALAKERS", "MEMPHISGRIZZLIES": "MEMPHISGRIZZLIES",
+    "MIAMIHEAT": "MIAMIHEAT", "MILWAUKEEBUCKS": "MILWAUKEEBUCKS", "MINNESOTATIMBERWOLVES": "MINNESOTATIMBERWOLVES",
+    "NEWORLEANPELICANS": "NEWORLEANPELICANS", "NYKNICKS": "NEWYORKKNICKS",
+    "OKLAHOMACITYTHUNDER": "OKLAHOMACITYTHUNDER", "ORLANDOMAGIC": "ORLANDOMAGIC",
+    "PHILADELPHIA76ERS": "PHILADELPHIA76ERS", "PHOENIXSUNS": "PHOENIXSUNS",
+    "PORTLANDTRAILBLAZERS": "PORTLANDTRAILBLAZERS", "SACRAMENTOKINGS": "SACRAMENTOKINGS",
+    "SANSANTONIOSPURS": "SANSANTONIOSPURS", "TORONTORAPTORS": "TORONTORAPTORS",
+    "UTAHJAZZ": "UTAHJAZZ", "WASHINGTONWIZARDS": "WASHINGTONWIZARDS",
+
+    # --- NHL ---
+    "ANAHEIMDUCKS": "ANAHEIMDUCKS", "ARIZONACOYOTES": "ARIZONACOYOTES",
+    "BOSTONBRUINS": "BOSTONBRUINS", "BUFFALOSABRES": "BUFFALOSABRES",
+    "CALGARYFLAMES": "CALGARYFLAMES", "CAROLINAHURRICANES": "CAROLINAHURRICANES",
+    "CHICAGOBLACKHAWKS": "CHICAGOBLACKHAWKS", "COLORADOAVALANCHE": "COLORADOAVALANCHE",
+    "COLUMBUSBLUEJACKETS": "COLUMBUSBLUEJACKETS", "DALLASSTARS": "DALLASSTARS",
+    "DETROITREDWINGS": "DETROITREDWINGS", "EDMONTONOILERS": "EDMONTONOILERS",
+    "FLORIDAPANTHERS": "FLORIDAPANTHERS", "LOSANGELESKINGS": "LOSANGELESKINGS",
+    "MINNESOTAWILD": "MINNESOTAWILD", "MONTREALCANADIENS": "MONTREALCANADIENS",
+    "NASHVILLEPREDATORS": "NASHVILLEPREDATORS", "NEWJERSEYDEVILS": "NEWJERSEYDEVILS",
+    "NYISLANDERS": "NYISLANDERS", "NYRANGERS": "NYRANGERS",
+    "OTTAWASENATORS": "OTTAWASENATORS", "PHILADELPHIAFLYERS": "PHILADELPHIAFLYERS",
+    "PITTSBURGH": "PITTSBURGH", "SANJOSESHARKS": "SANJOSESHARKS",
+    "SEATTLEKRAKEN": "SEATTLEKRAKEN", "STLOUISBLUES": "STLOUISBLUES",
+    "TAMPABAYLIGHTNING": "TAMPABAYLIGHTNING", "TORONTOMAPLELEAFS": "TORONTOMAPLELEAFS",
+    "VANCOUVERCANUCKS": "VANCOUVERCANUCKS", "VEGASGOLDENKNIGHTS": "VEGASGOLDENKNIGHTS",
+    "WASHINGTONCAPITALS": "WASHINGTONCAPITALS", "WINNIPEGJETS": "WINNIPEGJETS",
+
+    # --- MLB ---
+    "ARIZONADIAMONDBACKS": "ARIZONADIAMONDBACKS", "ATLANTABRAVES": "ATLANTABRAVES",
+    "BALTIMOREORIOLES": "BALTIMOREORIOLES", "BOSTONRED": "BOSTONRED", "CHICAGOCUBS": "CHICAGOCUBS",
+    "CHICAGO": "CHICAGO", "CINCINNATIREDS": "CINCINNATIREDS", "CLEVELANDGUARDIANS": "CLEVELANDGUARDIANS",
+    "COLORADOROCKIES": "COLORADOROCKIES", "DETROITTIGERS": "DETROITTIGERS", "HOUSTONASTROS": "HOUSTONASTROS",
+    "KANSASCITYROYALS": "KANSASCITYROYALS", "LAANGELS": "LAANGELS", "LADODGERS": "LADODGERS",
+    "MIAMIMARLINS": "MIAMIMARLINS", "MILWAUKEEBREWERS": "MILWAUKEEBREWERS",
+    "MINNESOTATWINS": "MINNESOTATWINS", "NYMETS": "NYMETS", "NYYANKEES": "NYYANKEES",
+    "OAKLANDATHLETICS": "OAKLANDATHLETICS", "PHILADELPHIAPHILLIES": "PHILADELPHIAPHILLIES",
+    "PITTSBURGH": "PITTSBURGH", "SANFRANCISCOGIANTS": "SANFRANCISCOGIANTS",
+    "SEATTLEMARINERS": "SEATTLEMARINERS", "STLOUISCARDINALS": "STLOUISCARDINALS",
+    "TAMPABAYRAYS": "TAMPABAYRAYS", "TEXASRANGERS": "TEXASRANGERS",
+    "TORONTOBLUEJAYS": "TORONTOBLUEJAYS", "WASHINGTONNATIONALS": "WASHINGTONNATIONALS",
 }
 
-def normalize_team(name: str) -> str:
-    if not isinstance(name, str) or not name.strip():
-        return ""
-    t = name.upper().replace(" ", "").replace("-", "")
-    for key, abbr in TEAM_MAP.items():
-        if key in t:
-            return abbr
-    return t[:3]
-
+# ------------------ HELPERS ------------------ #
 def safe_mean(series):
     try:
         return round(series.dropna().astype(float).mean(), 3)
     except Exception:
         return 0.0
 
+def normalize_team(t):
+    if not isinstance(t, str):
+        return ""
+    key = t.strip().upper().replace(" ", "").replace("-", "")
+    return TEAM_MAP.get(key, key)
+
+# ------------------ MAIN ------------------ #
 def main():
     if not PRED_FILE.exists() or not STATS_FILE.exists():
         print("❌ Missing required files for learning.")
@@ -53,39 +106,53 @@ def main():
     preds = pd.read_csv(PRED_FILE)
     stats = pd.read_csv(STATS_FILE)
 
-    preds.columns = [c.strip() for c in preds.columns]
+    preds.columns = [c.strip().lower() for c in preds.columns]
     stats.columns = [c.strip().lower() for c in stats.columns]
 
-    # --- Normalize predictions ---
-    if "BestPick" in preds.columns:
-        preds["team_norm"] = preds["BestPick"].apply(normalize_team)
-        print("✅ Using BestPick column as team identifier.")
+    # --- Normalize prediction teams --- #
+    team_cols = [c for c in preds.columns if c in ["team1", "team2", "home", "away", "bestpick"]]
+    if not team_cols:
+        print(f"⚠️ No suitable team columns found in predictions file. Columns: {list(preds.columns)}")
+        return
+    print("✅ Using team column(s):", team_cols)
+    for c in team_cols:
+        preds[c + "_norm"] = preds[c].apply(normalize_team)
+
+    # --- Normalize stat teams --- #
+    if "team" in stats.columns:
+        stats["team_norm"] = stats["team"].apply(normalize_team)
+    elif "home" in stats.columns:
+        stats["team_norm"] = stats["home"].apply(normalize_team)
     else:
-        print("⚠️ No BestPick column found in predictions file.")
+        print(f"⚠️ 'team' column missing from stats file. Columns: {list(stats.columns)}")
         return
 
-    # --- Normalize stats ---
-    if "team" not in stats.columns:
-        print(f"⚠️ 'team' column missing from stats file. Columns: {stats.columns.tolist()}")
-        return
-    stats["team_norm"] = stats["team"].apply(normalize_team)
+    merged_rows = []
+    for _, row in preds.iterrows():
+        possible_teams = [row.get(c + "_norm", "") for c in ["team1", "team2", "home", "away", "bestpick"]]
+        possible_teams = [t for t in possible_teams if t]
+        for t in possible_teams:
+            s = stats[stats["team_norm"] == t]
+            if not s.empty:
+                m = {**row.to_dict()}
+                for col in ["epa_off", "success_off", "epa_def", "success_def", "pace"]:
+                    if col in s.columns:
+                        m[col] = float(s[col].iloc[-1])
+                merged_rows.append(m)
+                break
 
-    # --- Merge predictions with stats ---
-    merged = preds.merge(stats, how="left", left_on="team_norm", right_on="team_norm")
-    if merged.empty:
-        print("⚠️ No matching teams found to merge.")
+    if not merged_rows:
+        print("⚠️ No matching games found to merge.")
         return
 
+    merged = pd.DataFrame(merged_rows)
     print(f"✅ Merged {len(merged)} predictions with team stat records")
-
-    merged["Edge"] = pd.to_numeric(merged.get("Edge", 0), errors="coerce")
-    merged["Confidence"] = pd.to_numeric(merged.get("Confidence", 0), errors="coerce")
 
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "games": len(merged),
-        "avg_edge": safe_mean(merged["Edge"]),
-        "avg_confidence": safe_mean(merged["Confidence"]),
+        "avg_edge": safe_mean(merged.get("edge", pd.Series(dtype=float))),
+        "avg_confidence": safe_mean(merged.get("confidence", pd.Series(dtype=float))),
         "avg_epa_off": safe_mean(merged.get("epa_off", pd.Series(dtype=float))),
         "avg_epa_def": safe_mean(merged.get("epa_def", pd.Series(dtype=float))),
         "avg_success_off": safe_mean(merged.get("success_off", pd.Series(dtype=float))),
@@ -99,12 +166,12 @@ def main():
 
     perf = {
         "updated": summary["timestamp"],
-        "NFL": {
+        "all_sports": {
             "edge": summary["avg_edge"],
             "confidence": summary["avg_confidence"],
-            "epa_diff": summary["avg_epa_off"] - summary["avg_epa_def"],
-            "success_diff": summary["avg_success_off"] - summary["avg_success_def"],
-            "pace": summary["avg_pace"],
+            "epa_off": summary["avg_epa_off"],
+            "epa_def": summary["avg_epa_def"],
+            "pace": summary["avg_pace"]
         },
     }
     with open(PERFORMANCE_FILE, "w") as f:
