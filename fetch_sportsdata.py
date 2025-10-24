@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-fetch_sportsdata.py — unified SportsData.io team stats fetcher for LockBox
+fetch_sportsdata.py — LockBox SportsData.io Team Stats Aggregator
 
 Purpose:
-  • Fetches final team-level game stats for all major sports (NFL, NCAAF, NBA, NHL, MLB)
-  • Normalizes them into one consistent CSV → Data/team_stats_latest.csv
-  • Pulls only *completed* games so results are stable for training/learning
+  • Fetch final team game stats for NFL, NCAAF, NBA, NHL, and MLB.
+  • Works with v3 API (free or trial tier).
+  • Saves unified stats to Data/team_stats_latest.csv for model learning.
 
 Environment:
-  SPORTSDATA_IO = your API key (b72cb4a769884f22b82157d6ba2da26b)
+  SPORTSDATA_IO = your SportsData.io API key
 
-Output:
+Outputs:
   Data/team_stats_latest.csv
 """
 
@@ -28,29 +28,32 @@ DATA_DIR = Path("Data")
 DATA_DIR.mkdir(exist_ok=True)
 OUT_FILE = DATA_DIR / "team_stats_latest.csv"
 
-# --- Configurations per sport ---
+# --- Sports Config (v3 endpoints) ---
 SPORTS_CONFIG = {
     "NFL": {
-        "endpoint": "https://api.sportsdata.io/v4/nfl/stats/json/TeamGameStatsByWeek/2025REG/{week}",
-        "weeks": [8],  # we can make this dynamic later
+        "endpoint": "https://api.sportsdata.io/v3/nfl/stats/json/TeamGameStatsByWeek/{season}/{week}",
+        "season": "2024REG",
+        "weeks": [7, 8],  # you can adjust this to backfill more
     },
     "NCAAF": {
-        "endpoint": "https://api.sportsdata.io/v4/cfb/stats/json/TeamGameStatsByWeek/2025REG/{week}",
-        "weeks": [8],
+        "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsByWeek/{season}/{week}",
+        "season": "2024REG",
+        "weeks": [7, 8],
     },
     "NBA": {
-        "endpoint": "https://api.sportsdata.io/v4/nba/stats/json/TeamGameStatsByDate/{date}",
+        "endpoint": "https://api.sportsdata.io/v3/nba/stats/json/TeamGameStatsByDate/{date}",
         "days": 7,
     },
     "NHL": {
-        "endpoint": "https://api.sportsdata.io/v4/nhl/stats/json/TeamGameStatsByDate/{date}",
+        "endpoint": "https://api.sportsdata.io/v3/nhl/stats/json/TeamGameStatsByDate/{date}",
         "days": 7,
     },
     "MLB": {
-        "endpoint": "https://api.sportsdata.io/v4/mlb/stats/json/TeamGameStatsByDate/{date}",
+        "endpoint": "https://api.sportsdata.io/v3/mlb/stats/json/TeamGameStatsByDate/{date}",
         "days": 7,
     },
 }
+
 
 def safe_get(url):
     try:
@@ -63,28 +66,24 @@ def safe_get(url):
         print(f"❌ Error fetching {url}: {e}")
         return []
 
+
 def parse_games(sport, data):
     games = []
     for g in data:
         try:
-            date = g.get("Day", g.get("DayKey", g.get("GameDate"))) or g.get("Date")
+            date = g.get("Day") or g.get("DayKey") or g.get("GameDate") or g.get("Date")
             if not date:
                 continue
             if isinstance(date, str) and "T" in date:
                 date = date.split("T")[0]
 
-            # figure out home vs away
-            if "HomeTeam" in g and "AwayTeam" in g:
-                home = g["HomeTeam"]
-                away = g["AwayTeam"]
-            elif "Team" in g and "Opponent" in g:
-                home = g["Team"]
-                away = g["Opponent"]
-            else:
+            home = g.get("HomeTeam") or g.get("Team")
+            away = g.get("AwayTeam") or g.get("Opponent")
+            if not home or not away:
                 continue
 
-            home_score = g.get("HomeScore", g.get("Score", 0))
-            away_score = g.get("AwayScore", g.get("OpponentScore", 0))
+            home_score = g.get("HomeScore") or g.get("Score") or 0
+            away_score = g.get("AwayScore") or g.get("OpponentScore") or 0
             if home_score is None or away_score is None:
                 continue
 
@@ -98,15 +97,15 @@ def parse_games(sport, data):
                 "HomeScore": home_score,
                 "AwayScore": away_score,
                 "Winner": winner,
-                "HomeYards": g.get("OffensiveYards", None),
-                "AwayYards": g.get("OpponentOffensiveYards", None),
-                "HomeTurnovers": g.get("Turnovers", None),
-                "AwayTurnovers": g.get("OpponentTurnovers", None),
-                "HomePossession": g.get("TimeOfPossessionMinutes", None),
-                "AwayPossession": g.get("OpponentTimeOfPossessionMinutes", None),
+                "HomeYards": g.get("OffensiveYards"),
+                "AwayYards": g.get("OpponentOffensiveYards"),
+                "HomeTurnovers": g.get("Turnovers"),
+                "AwayTurnovers": g.get("OpponentTurnovers"),
+                "HomePossession": g.get("TimeOfPossessionMinutes"),
+                "AwayPossession": g.get("OpponentTimeOfPossessionMinutes"),
             })
         except Exception as e:
-            print(f"⚠️ Skipping game due to parse error: {e}")
+            print(f"⚠️ Skipping {sport} game parse error: {e}")
     return games
 
 
@@ -118,7 +117,7 @@ def fetch_all():
 
         if "weeks" in cfg:
             for w in cfg["weeks"]:
-                url = cfg["endpoint"].format(week=w)
+                url = cfg["endpoint"].format(season=cfg["season"], week=w)
                 data = safe_get(url)
                 parsed = parse_games(sport, data)
                 print(f"✅ {sport} week {w}: {len(parsed)} games")
