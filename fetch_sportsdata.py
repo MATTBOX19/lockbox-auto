@@ -88,22 +88,32 @@ def parse_games(sport, data):
             if home_score is None or away_score is None:
                 continue
 
-            winner = home if float(home_score) > float(away_score) else away
-
+            # ✅ Add both home and away team perspectives
             games.append({
                 "Date": date,
                 "Sport": sport,
-                "Home": home,
-                "Away": away,
-                "HomeScore": home_score,
-                "AwayScore": away_score,
-                "Winner": winner,
-                "HomeYards": g.get("OffensiveYards"),
-                "AwayYards": g.get("OpponentOffensiveYards"),
-                "HomeTurnovers": g.get("Turnovers"),
-                "AwayTurnovers": g.get("OpponentTurnovers"),
-                "HomePossession": g.get("TimeOfPossessionMinutes"),
-                "AwayPossession": g.get("OpponentTimeOfPossessionMinutes"),
+                "Team": home,
+                "Opponent": away,
+                "Score": home_score,
+                "OppScore": away_score,
+                "Yards": g.get("OffensiveYards"),
+                "OppYards": g.get("OpponentOffensiveYards"),
+                "Turnovers": g.get("Turnovers"),
+                "OppTurnovers": g.get("OpponentTurnovers"),
+                "Possession": g.get("TimeOfPossessionMinutes"),
+            })
+            games.append({
+                "Date": date,
+                "Sport": sport,
+                "Team": away,
+                "Opponent": home,
+                "Score": away_score,
+                "OppScore": home_score,
+                "Yards": g.get("OpponentOffensiveYards"),
+                "OppYards": g.get("OffensiveYards"),
+                "Turnovers": g.get("OpponentTurnovers"),
+                "OppTurnovers": g.get("Turnovers"),
+                "Possession": g.get("OpponentTimeOfPossessionMinutes"),
             })
         except Exception as e:
             print(f"⚠️ Skipping {sport} game parse error: {e}")
@@ -150,6 +160,7 @@ def fetch_all():
     df_all.sort_values(["Date", "Sport"], inplace=True)
     df_all.to_csv(OUT_FILE, index=False)
     print(f"🏁 Saved unified file → {OUT_FILE} ({len(df_all)} total rows)")
+
 
 if __name__ == "__main__":
     fetch_all()
