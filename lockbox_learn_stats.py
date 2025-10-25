@@ -330,24 +330,54 @@ def main():
 
     print(f"✅ Using team column(s): ['{team_col}']")
 
-    preds["team_norm"] = preds[team_col].astype(str).apply(normalize_team)
-    stats["team_norm"] = stats["team"].astype(str).apply(normalize_team) if "team" in stats.columns else ""
+       # --- improved normalization & merge logic ---
+    def normalize_name(x: str) -> str:
+        if not isinstance(x, str):
+            return ""
+        x = x.upper().strip()
+        x = re.sub(r"\(.*?\)", "", x)          # remove (ATS), (ML), etc.
+        x = re.sub(r"[^A-Z0-9 ]+", "", x)
+        x = re.sub(r"\s+", " ", x)
+        return x.strip()
+
+    # build a quick alias → abbr lookup
+    ALIAS_TO_ABBR = {}
+    for abbr, aliases in TEAM_MAP.items():
+        ALIAS_TO_ABBR[abbr] = abbr
+        for alias in aliases:
+            ALIAS_TO_ABBR[normalize_name(alias)] = abbr
+
+    def to_key(s: str) -> str:
+        n = normalize_name(s)
+        return ALIAS_TO_ABBR.get(n, n)  # mapped abbr if known, else cleaned text
+
+    # normalize predictions team names
+    preds["team_key"] = preds[team_col].astype(str).apply(to_key)
+
+    # normalize stats team column (your CSV has 'team')
+    stats["team_key"] = stats["team"].astype(str).apply(to_key)
 
     merged_rows, unmatched = [], set()
 
-    for _, row in preds.iterrows():
-        t = row["team_norm"]
-        if not t:
+    for _, prow in preds.iterrows():
+        tkey = prow["team_key"]
+        if not tkey:
             continue
-        s = stats[(stats["team_norm"] == t) | (stats["team_norm"].str.contains(t[:3], na=False))]
-        if not s.empty:
-            merged = {**row.to_dict()}
-            for col in ["epa_off", "epa_def", "success_off", "success_def", "pace"]:
-                if col in s.columns:
-                    merged[col] = float(s[col].iloc[0])
-            merged_rows.append(merged)
-        else:
-            unmatched.add(t)
+
+        # match on abbreviation
+        s = stats[stats["team_key"] == tkey]
+
+        if s.empty:
+            unmatched.add(tkey)
+            continue
+
+        srow = s.iloc[0]
+        merged = {**prow.to_dict()}
+        for col in ["epa_off", "epa_def", "success_off", "success_def", "pace"]:
+            if col in s.columns:
+                merged[col] = float(srow[col])
+        merged_rows.append(merged)
+
 
     if not merged_rows:
         print("⚠️ No matching games found to merge.")
