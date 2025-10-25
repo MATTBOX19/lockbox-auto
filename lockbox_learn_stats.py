@@ -4,7 +4,7 @@ lockbox_learn_stats.py — Merge LockBox predictions with SportsData.io stats
 
 Automated Daily Metrics Learner:
   • Normalizes team names (supports NFL, NCAAF, NBA, MLB, NHL)
-  • Merges latest predictions ↔ team stats
+  • Merges latest predictions ↔ team stats (with partial-match support)
   • Updates metrics.json and performance.json
 """
 
@@ -127,9 +127,9 @@ def normalize_team(t):
     if not isinstance(t, str):
         return ""
     t = t.strip().upper()
-    t = re.sub(r"\(.*?\)", "", t)             # remove (ATS), (ML), etc
-    t = re.sub(r"[^A-Z0-9]", "", t)           # strip punctuation/spaces
-    t = re.sub(r"(NFL|NBA|MLB|NHL|NCAAF)$", "", t)  # remove sport suffix
+    t = re.sub(r"\(.*?\)", "", t)
+    t = re.sub(r"[^A-Z0-9]", "", t)
+    t = re.sub(r"(NFL|NBA|MLB|NHL|NCAAF)$", "", t)
     for abbr, aliases in TEAM_MAP.items():
         clean_aliases = [re.sub(r"[^A-Z0-9]", "", a.upper()) for a in aliases]
         if t == abbr or t in clean_aliases:
@@ -153,6 +153,10 @@ def main():
     preds.columns = [c.lower().strip() for c in preds.columns]
     stats.columns = [c.lower().strip() for c in stats.columns]
 
+    # --- Normalize possible sport/league naming ---
+    if "sport" in stats.columns:
+        stats = stats.rename(columns={"sport": "league"})
+
     team_col = next((c for c in ["bestpick", "team1", "home", "team"] if c in preds.columns), None)
     if not team_col:
         print(f"⚠️ No usable team column found. Columns: {list(preds.columns)}")
@@ -169,7 +173,7 @@ def main():
         t = row["team_norm"]
         if not t:
             continue
-        s = stats[stats["team_norm"] == t]
+        s = stats[(stats["team_norm"] == t) | (stats["team_norm"].str.contains(t[:3], na=False))]
         if not s.empty:
             merged = {**row.to_dict()}
             for col in ["epa_off", "epa_def", "success_off", "success_def", "pace"]:
