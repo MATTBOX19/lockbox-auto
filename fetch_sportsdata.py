@@ -12,6 +12,7 @@ Environment:
 
 Outputs:
   Data/team_stats_latest.csv
+  Data/<sport>_team_stats.csv   ← new per-sport files (kept and combined)
 """
 
 import os
@@ -33,20 +34,20 @@ SPORTS_CONFIG = {
     "NFL": {
         "endpoint": "https://api.sportsdata.io/v3/nfl/stats/json/TeamGameStatsFinal/{season}/{week}",
         "season": "2025",
-        "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        "weeks": list(range(1, 19)),
     },
     "NCAAF": {
         "endpoint": "https://api.sportsdata.io/v3/cfb/stats/json/TeamGameStatsByWeek/{season}/{week}",
         "season": "2025REG",
-        "weeks": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        "weeks": list(range(1, 15)),
     },
     "NBA": {
         "endpoint": "https://api.sportsdata.io/v3/nba/stats/json/TeamGameStatsByDate/{date}",
-        "days": 24,
+        "days": 120,
     },
     "NHL": {
         "endpoint": "https://api.sportsdata.io/v3/nhl/stats/json/TeamGameStatsByDate/{date}",
-        "days": 34,
+        "days": 120,
     },
     "MLB": {
         "endpoint": "https://api.sportsdata.io/v3/mlb/stats/json/TeamGameStatsByDate/{date}",
@@ -110,18 +111,20 @@ def parse_games(sport, data):
 
 
 def fetch_all():
-    all_games = []
+    combined = []
 
     for sport, cfg in SPORTS_CONFIG.items():
         print(f"📊 Fetching {sport}...")
+        sport_games = []
 
         if "weeks" in cfg:
             for w in cfg["weeks"]:
                 url = cfg["endpoint"].format(season=cfg["season"], week=w)
                 data = safe_get(url)
                 parsed = parse_games(sport, data)
+                if parsed:
+                    sport_games.extend(parsed)
                 print(f"✅ {sport} week {w}: {len(parsed)} games")
-                all_games.extend(parsed)
 
         elif "days" in cfg:
             for i in range(cfg["days"]):
@@ -129,20 +132,24 @@ def fetch_all():
                 url = cfg["endpoint"].format(date=day)
                 data = safe_get(url)
                 parsed = parse_games(sport, data)
+                if parsed:
+                    sport_games.extend(parsed)
                 print(f"✅ {sport} {day}: {len(parsed)} games")
-                all_games.extend(parsed)
 
-    if not all_games:
-        print("⚠️ No games fetched.")
+        if sport_games:
+            df_sport = pd.DataFrame(sport_games).drop_duplicates()
+            df_sport.to_csv(DATA_DIR / f"{sport.lower()}_team_stats.csv", index=False)
+            print(f"💾 Saved {sport} stats → Data/{sport.lower()}_team_stats.csv ({len(df_sport)} rows)")
+            combined.extend(sport_games)
+
+    if not combined:
+        print("⚠️ No games fetched across all sports.")
         return
 
-    df = pd.DataFrame(all_games)
-    df.drop_duplicates(inplace=True)
-    df.sort_values(["Date", "Sport"], inplace=True)
-
-    df.to_csv(OUT_FILE, index=False)
-    print(f"🏁 Saved → {OUT_FILE} ({len(df)} rows)")
-
+    df_all = pd.DataFrame(combined).drop_duplicates()
+    df_all.sort_values(["Date", "Sport"], inplace=True)
+    df_all.to_csv(OUT_FILE, index=False)
+    print(f"🏁 Saved unified file → {OUT_FILE} ({len(df_all)} total rows)")
 
 if __name__ == "__main__":
     fetch_all()
