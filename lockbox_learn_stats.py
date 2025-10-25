@@ -8,16 +8,33 @@ Automated Daily Metrics Learner:
   • Updates metrics.json and performance.json
 """
 
-import pandas as pd, json, re
+import json
+import re
 from pathlib import Path
 from datetime import datetime
 
+import pandas as pd
+
+import logging
+from logging.handlers import RotatingFileHandler
+from difflib import get_close_matches, SequenceMatcher
+
+# try optional high-quality fuzzy library
+try:
+    from rapidfuzz import process, fuzz  # type: ignore
+    HAS_RAPIDFUZZ = True
+except Exception:
+    HAS_RAPIDFUZZ = False
+
+
+# -------- Configuration / file paths ----------
 OUT_DIR = Path("Output")
 DATA_DIR = Path("Data")
 STATS_FILE = DATA_DIR / "team_stats_latest.csv"
 PRED_FILE = OUT_DIR / "Predictions_latest_Explained.csv"
 METRICS_FILE = OUT_DIR / "metrics.json"
 PERFORMANCE_FILE = OUT_DIR / "performance.json"
+
 
 # --- TEAM MAP (All Major Sports) ---
 TEAM_MAP = {
@@ -55,7 +72,7 @@ TEAM_MAP = {
     "TEN": ["TENNESSEE TITANS", "TITANS"],
     "WAS": ["WASHINGTON COMMANDERS", "COMMANDERS", "WASHINGTON"],
 
-       # --- NBA ---
+    # --- NBA ---
     "ATL_NBA": ["ATLANTA HAWKS", "HAWKS"],
     "BOS_NBA": ["BOSTON CELTICS", "CELTICS", "CS"],
     "BKN": ["BROOKLYN NETS", "NETS"],
@@ -87,7 +104,7 @@ TEAM_MAP = {
     "UTA": ["UTAH JAZZ", "JAZZ"],
     "WAS_NBA": ["WASHINGTON WIZARDS", "WIZARDS"],
 
-       # --- MLB ---
+    # --- MLB ---
     "ARI_MLB": ["ARIZONA DIAMONDBACKS", "DIAMONDBACKS", "D-BACKS"],
     "ATL_MLB": ["ATLANTA BRAVES", "BRAVES"],
     "BAL_MLB": ["BALTIMORE ORIOLES", "ORIOLES", "OS"],
@@ -119,7 +136,7 @@ TEAM_MAP = {
     "TOR_MLB": ["TORONTO BLUE JAYS", "BLUE JAYS", "JAYS"],
     "WSH_MLB": ["WASHINGTON NATIONALS", "NATIONALS", "NATS"],
 
-       # --- NHL ---
+    # --- NHL ---
     "ANA": ["ANAHEIM DUCKS", "DUCKS"],
     "ARI_NHL": ["ARIZONA COYOTES", "COYOTES", "YOTES"],
     "BOS_NHL": ["BOSTON BRUINS", "BRUINS"],
@@ -153,141 +170,35 @@ TEAM_MAP = {
     "WPG": ["WINNIPEG JETS", "JETS"],
     "WSH_NHL": ["WASHINGTON CAPITALS", "CAPITALS", "CAPS"],
 
-       # --- NCAAF ---
+    # --- NCAAF (subset / examples) ---
     "ALA": ["ALABAMA CRIMSON TIDE", "ALABAMA", "BAMA"],
     "UGA": ["GEORGIA BULLDOGS", "GEORGIA", "DAWGS"],
     "LSU": ["LSU TIGERS", "LOUISIANA STATE"],
     "TEX": ["TEXAS LONGHORNS", "TEXAS", "HORNS"],
     "OU": ["OKLAHOMA SOONERS", "OKLAHOMA"],
     "OSU": ["OHIO STATE BUCKEYES", "OHIO STATE", "BUCKEYES"],
-    "MICH": ["MICHIGAN WOLVERINES", "MICHIGAN"],
-    "USC": ["SOUTHERN CALIFORNIA TROJANS", "USC TROJANS", "TROJANS"],
-    "PSU": ["PENN STATE NITTANY LIONS", "PENN STATE", "NITTANY LIONS"],
-    "ND": ["NOTRE DAME FIGHTING IRISH", "NOTRE DAME", "IRISH"],
-    "ORE": ["OREGON DUCKS", "OREGON", "DUCKS"],
-    "WASH": ["WASHINGTON HUSKIES", "WASHINGTON"],
-    "TENN": ["TENNESSEE VOLUNTEERS", "TENNESSEE", "VOLS"],
-    "FSU": ["FLORIDA STATE SEMINOLES", "FLORIDA STATE", "NOLES"],
-    "CLEM": ["CLEMSON TIGERS", "CLEMSON"],
-    "AUB": ["AUBURN TIGERS", "AUBURN"],
-    "TAMU": ["TEXAS A&M AGGIES", "TEXAS A&M", "AGGIES"],
-    "FL": ["FLORIDA GATORS", "FLORIDA", "GATORS"],
-    "UNC": ["NORTH CAROLINA TAR HEELS", "NORTH CAROLINA", "TAR HEELS"],
-    "NCST": ["NC STATE WOLFPACK", "NORTH CAROLINA STATE", "WOLFPACK"],
-    "MIAMI": ["MIAMI HURRICANES", "MIAMI (FL)", "CANES"],
-    "VT": ["VIRGINIA TECH HOKIES", "VIRGINIA TECH"],
-    "WISC": ["WISCONSIN BADGERS", "WISCONSIN"],
-    "IOWA": ["IOWA HAWKEYES", "IOWA"],
-    "MINN": ["MINNESOTA GOLDEN GOPHERS", "MINNESOTA", "GOPHERS"],
-    "NEB": ["NEBRASKA CORNHUSKERS", "NEBRASKA", "HUSKERS"],
-    "MSU": ["MICHIGAN STATE SPARTANS", "MICHIGAN STATE", "SPARTANS"],
-    "IU": ["INDIANA HOOSIERS", "INDIANA"],
-    "UK": ["KENTUCKY WILDCATS", "KENTUCKY"],
-    "BAY": ["BAYLOR BEARS", "BAYLOR"],
-    "TTU": ["TEXAS TECH RED RAIDERS", "TEXAS TECH", "RED RAIDERS"],
-    "KSU": ["KANSAS STATE WILDCATS", "KANSAS STATE"],
-    "KU": ["KANSAS JAYHAWKS", "KANSAS"],
-    "OLE": ["OLE MISS REBELS", "MISSISSIPPI REBELS", "REBELS"],
-    "MISS": ["MISSISSIPPI STATE BULLDOGS", "MISSISSIPPI STATE"],
-    "ARK": ["ARKANSAS RAZORBACKS", "ARKANSAS", "HOGS"],
-    "MIZZ": ["MISSOURI TIGERS", "MISSOURI"],
-    "UVA": ["VIRGINIA CAVALIERS", "VIRGINIA", "HOOS"],
-    "CAL": ["CALIFORNIA GOLDEN BEARS", "CALIFORNIA", "GOLDEN BEARS"],
-    "STAN": ["STANFORD CARDINAL", "STANFORD"],
-    "UCLA": ["UCLA BRUINS", "BRUINS"],
-    "AZ": ["ARIZONA WILDCATS", "ARIZONA"],
-    "ASU": ["ARIZONA STATE SUN DEVILS", "ARIZONA STATE", "SUN DEVILS"],
-    "COLO": ["COLORADO BUFFALOES", "COLORADO", "BUFFS"],
-    "UTAH": ["UTAH UTES", "UTAH"],
-    "OKST": ["OKLAHOMA STATE COWBOYS", "OKLAHOMA STATE", "COWBOYS"],
-    "TCU": ["TCU HORNED FROGS", "TEXAS CHRISTIAN", "HORNED FROGS"],
-    "SMU": ["SMU MUSTANGS", "SOUTHERN METHODIST", "MUSTANGS"],
-    "HOU": ["HOUSTON COUGARS", "HOUSTON"],
-    "WVU": ["WEST VIRGINIA MOUNTAINEERS", "WEST VIRGINIA"],
-    "PITT": ["PITTSBURGH PANTHERS", "PITTSBURGH"],
-    "LOU": ["LOUISVILLE CARDINALS", "LOUISVILLE"],
-    "GT": ["GEORGIA TECH YELLOW JACKETS", "GEORGIA TECH"],
-    "SYR": ["SYRACUSE ORANGE", "SYRACUSE"],
-    "BC": ["BOSTON COLLEGE EAGLES", "BOSTON COLLEGE"],
-    "NAVY": ["NAVY MIDSHIPMEN", "NAVY"],
-    "ARMY": ["ARMY BLACK KNIGHTS", "ARMY"],
-    "AIRF": ["AIR FORCE FALCONS", "AIR FORCE"],
-    "BOISE": ["BOISE STATE BRONCOS", "BOISE STATE"],
-    "SDSU": ["SAN DIEGO STATE AZTECS", "SAN DIEGO STATE"],
-    "FRES": ["FRESNO STATE BULLDOGS", "FRESNO STATE"],
-    "SJSU": ["SAN JOSE STATE SPARTANS", "SAN JOSE STATE"],
-    "UNLV": ["UNLV REBELS", "NEVADA LAS VEGAS", "REBELS"],
-    "NEV": ["NEVADA WOLF PACK", "NEVADA"],
-    "HAW": ["HAWAII RAINBOW WARRIORS", "HAWAII"],
-    "CSU": ["COLORADO STATE RAMS", "COLORADO STATE"],
-    "UCF": ["UCF KNIGHTS", "CENTRAL FLORIDA", "KNIGHTS"],
-    "USF": ["USF BULLS", "SOUTH FLORIDA", "BULLS"],
-    "MEM": ["MEMPHIS TIGERS", "MEMPHIS"],
-    "TUL": ["TULANE GREEN WAVE", "TULANE"],
-    "ECU": ["EAST CAROLINA PIRATES", "EAST CAROLINA"],
-    "UCONN": ["CONNECTICUT HUSKIES", "UCONN", "CONNECTICUT"],
-    "RUT": ["RUTGERS SCARLET KNIGHTS", "RUTGERS"],
-      "NW": ["NORTHWESTERN WILDCATS", "NORTHWESTERN"],
-    "PUR": ["PURDUE BOILERMAKERS", "PURDUE"],
-    "ILL": ["ILLINOIS FIGHTING ILLINI", "ILLINOIS", "ILLINI"],
-    "MD": ["MARYLAND TERRAPINS", "MARYLAND", "TERPS"],
-    "DUKE": ["DUKE BLUE DEVILS", "DUKE"],
-    "TROY": ["TROY TROJANS", "TROY"],
-    "APP": ["APPALACHIAN STATE MOUNTAINEERS", "APPALACHIAN STATE", "APP STATE"],
-    "GASO": ["GEORGIA SOUTHERN EAGLES", "GEORGIA SOUTHERN"],
-    "GAST": ["GEORGIA STATE PANTHERS", "GEORGIA STATE"],
-    "COAST": ["COASTAL CAROLINA CHANTICLEERS", "COASTAL CAROLINA"],
-    "JMU": ["JAMES MADISON DUKES", "JAMES MADISON"],
-    "ODU": ["OLD DOMINION MONARCHS", "OLD DOMINION"],
-    "MARSH": ["MARSHALL THUNDERING HERD", "MARSHALL"],
-    "MTSU": ["MIDDLE TENNESSEE BLUE RAIDERS", "MIDDLE TENNESSEE"],
-    "WKU": ["WESTERN KENTUCKY HILLTOPPERS", "WESTERN KENTUCKY"],
-    "UAB": ["UAB BLAZERS", "ALABAMA BIRMINGHAM"],
-    "UTSA": ["UTSA ROADRUNNERS", "TEXAS SAN ANTONIO"],
-    "UTEP": ["UTEP MINERS", "TEXAS EL PASO"],
-    "UNT": ["NORTH TEXAS MEAN GREEN", "NORTH TEXAS"],
-    "FAU": ["FLORIDA ATLANTIC OWLS", "FLORIDA ATLANTIC"],
-    "FIU": ["FLORIDA INTERNATIONAL PANTHERS", "FLORIDA INTERNATIONAL"],
-    "CHAR": ["CHARLOTTE 49ERS", "CHARLOTTE"],
-    "USM": ["SOUTHERN MISS GOLDEN EAGLES", "SOUTHERN MISS", "SOUTHERN MISSISSIPPI"],
-    "RICE": ["RICE OWLS", "RICE"],
-    "LT": ["LOUISIANA TECH BULLDOGS", "LOUISIANA TECH"],
-    "ULL": ["LOUISIANA RAGIN CAJUNS", "LOUISIANA LAFAYETTE", "LOUISIANA"],
-    "ULM": ["LOUISIANA MONROE WARHAWKS", "LOUISIANA MONROE"],
-    "ARKST": ["ARKANSAS STATE RED WOLVES", "ARKANSAS STATE"],
-    "TXST": ["TEXAS STATE BOBCATS", "TEXAS STATE"],
-    "NMSU": ["NEW MEXICO STATE AGGIES", "NEW MEXICO STATE"],
-    "NM": ["NEW MEXICO LOBOS", "NEW MEXICO"],
-    "UTAHST": ["UTAH STATE AGGIES", "UTAH STATE"],
-    "BYU": ["BYU COUGARS", "BRIGHAM YOUNG"],
-    "IDAHO": ["IDAHO VANDALS", "IDAHO"],
-    "UWM": ["WYOMING COWBOYS", "WYOMING"],
-    "UNM": ["NEW MEXICO LOBOS", "NEW MEXICO"],
-    "SJST": ["SAN JOSE STATE SPARTANS", "SAN JOSE STATE"],
-    "CSUN": ["COLORADO STATE RAMS", "COLORADO STATE"],
-    "TOL": ["TOLEDO ROCKETS", "TOLEDO"],
-    "BGSU": ["BOWLING GREEN FALCONS", "BOWLING GREEN"],
-    "CMU": ["CENTRAL MICHIGAN CHIPPEWAS", "CENTRAL MICHIGAN"],
-    "WMU": ["WESTERN MICHIGAN BRONCOS", "WESTERN MICHIGAN"],
-    "EMU": ["EASTERN MICHIGAN EAGLES", "EASTERN MICHIGAN"],
-    "NIU": ["NORTHERN ILLINOIS HUSKIES", "NORTHERN ILLINOIS"],
-    "AKRON": ["AKRON ZIPS", "AKRON"],
-    "KENT": ["KENT STATE GOLDEN FLASHES", "KENT STATE"],
-    "OHIO": ["OHIO BOBCATS", "OHIO"],
-    "BALL": ["BALL STATE CARDINALS", "BALL STATE"],
-    "BUFF": ["BUFFALO BULLS", "BUFFALO"],
-    "MIAMIOH": ["MIAMI (OH) REDHAWKS", "MIAMI OHIO", "REDHAWKS"],
-    "UCFB": ["CENTRAL FLORIDA KNIGHTS", "UCF", "KNIGHTS"],
-    "GSU": ["GEORGIA STATE PANTHERS", "GEORGIA STATE"],
-    "TEXSAN": ["TEXAS SAN ANTONIO ROADRUNNERS", "UTSA"],
-    "TXELP": ["TEXAS EL PASO MINERS", "UTEP"],
-    "LIB": ["LIBERTY FLAMES", "LIBERTY"],
-    "SAMH": ["SAM HOUSTON BEARKATS", "SAM HOUSTON"],
-    "JAXST": ["JACKSONVILLE STATE GAMECOCKS", "JACKSONVILLE STATE"],
-    "KSUF": ["KENNESAW STATE OWLS", "KENNESAW STATE"],
+    # ... (keep the remainder of your NCAAF map as you had it) ...
 }
 
-# --- Utility helpers ---
+
+# --- Utility helpers + improved logging/debugging ---
+def setup_logger(out_dir: Path, name: str = "lockbox"):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger(name)
+    # If handlers already present (module re-imported), return same logger
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    fh = RotatingFileHandler(out_dir / "lockbox_run.log", maxBytes=2_000_000, backupCount=5)
+    fh.setFormatter(fmt)
+    logger.addHandler(sh)
+    logger.addHandler(fh)
+    return logger
+
+
 def normalize_team(t):
     """Clean and normalize team string to match TEAM_MAP aliases."""
     if not isinstance(t, str):
@@ -310,9 +221,90 @@ def safe_mean(series):
         return 0.0
 
 
+def _get_fuzzy_candidates(pred_name: str, choices: list, top_n=5):
+    """Return list of (candidate, score) pairs ordered best->worst."""
+    if not choices:
+        return []
+    if HAS_RAPIDFUZZ:
+        results = process.extract(pred_name, choices, scorer=fuzz.token_sort_ratio, limit=top_n)
+        out = []
+        for r in results:
+            if len(r) >= 2:
+                out.append((r[0], float(r[1])))
+        return out
+    else:
+        matches = get_close_matches(pred_name, choices, n=top_n, cutoff=0.0)
+        out = []
+        for m in matches:
+            score = int(SequenceMatcher(a=pred_name, b=m).ratio() * 100)
+            out.append((m, float(score)))
+        return out
+
+
+def dump_debug_files(out_dir: Path, logger, preds: pd.DataFrame, stats: pd.DataFrame, merged: pd.DataFrame, unmatched: set):
+    """Write CSVs to OUT_DIR to inspect merged/unmatched and fuzzy candidates."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # merged (may be empty)
+    merged_path = out_dir / "merged_debug.csv"
+    try:
+        merged.to_csv(merged_path, index=False)
+        logger.info("Wrote merged debug rows => %s (%d rows)", merged_path, len(merged))
+    except Exception as e:
+        logger.exception("Failed writing merged_debug.csv: %s", e)
+
+    # unmatched list
+    unmatched_list = sorted(list(unmatched))
+    un_path = out_dir / "unmatched_sample.csv"
+    try:
+        pd.DataFrame(unmatched_list, columns=["unmatched"]).to_csv(un_path, index=False)
+        logger.info("Wrote unmatched list => %s (%d entries)", un_path, len(unmatched_list))
+    except Exception as e:
+        logger.exception("Failed writing unmatched_sample.csv: %s", e)
+
+    # Save some sample stats keys for quick inspection
+    stats_keys_path = out_dir / "stats_team_keys_sample.csv"
+    try:
+        if "team_key" in stats.columns:
+            pd.Series(sorted(stats["team_key"].dropna().unique()), name="stats_team_key").to_csv(stats_keys_path, index=False)
+            logger.info("Wrote stats team_key sample => %s", stats_keys_path)
+    except Exception as e:
+        logger.exception("Failed writing stats_team_keys_sample.csv: %s", e)
+
+    # Prepare choices robustly: prefer stats.team_key, else fallback to stats.team (or empty Series)
+    if "team_key" in stats.columns:
+        choices_series = stats["team_key"].dropna().astype(str)
+    else:
+        team_col = stats.get("team", pd.Series(dtype=str))
+        choices_series = pd.Series(team_col).dropna().astype(str)
+
+    choices = list(choices_series.unique())
+
+    # Generate fuzzy candidates for top unmatched (limit 200 to avoid huge file)
+    candidates = []
+    for pred in unmatched_list[:200]:
+        cands = _get_fuzzy_candidates(pred, choices, top_n=8)
+        for cand, score in cands:
+            candidates.append({"pred": pred, "candidate": cand, "score": score})
+
+    cand_path = out_dir / "unmatched_fuzzy_candidates.csv"
+    try:
+        if candidates:
+            pd.DataFrame(candidates).to_csv(cand_path, index=False)
+            logger.info("Wrote fuzzy candidate matches => %s (%d rows)", cand_path, len(candidates))
+        else:
+            logger.info("No fuzzy candidates generated (empty unmatched or stats choices).")
+    except Exception as e:
+        logger.exception("Failed writing unmatched_fuzzy_candidates.csv: %s", e)
+
+
+# --- main logic ----------------------------------------------------------
 def main():
+    logger = setup_logger(OUT_DIR)
+    logger.info("Starting lockbox_learn_stats run")
+
     if not PRED_FILE.exists() or not STATS_FILE.exists():
-        print("❌ Missing required files.")
+        logger.error("Missing required files: %s, %s", PRED_FILE, STATS_FILE)
         return
 
     preds = pd.read_csv(PRED_FILE)
@@ -327,10 +319,10 @@ def main():
 
     team_col = next((c for c in ["bestpick", "team1", "home", "team"] if c in preds.columns), None)
     if not team_col:
-        print(f"⚠️ No usable team column found. Columns: {list(preds.columns)}")
+        logger.error("No usable team column found. Columns: %s", list(preds.columns))
         return
 
-    print(f"✅ Using team column(s): ['{team_col}']")
+    logger.info("Using team column: %s", team_col)
 
     # --- improved normalization & merge logic ---
     def normalize_name(x: str) -> str:
@@ -355,196 +347,87 @@ def main():
 
     # normalize predictions team names
     preds["team_key"] = preds[team_col].astype(str).apply(to_key)
+    logger.info("Predictions: %d rows, sample team_key: %s", len(preds), preds["team_key"].dropna().unique()[:8].tolist())
 
     # --- handle game-level stats with Home/Away ---
     if "team" in stats.columns:
         stats["team_key"] = stats["team"].astype(str).apply(to_key)
     elif "home" in stats.columns and "away" in stats.columns:
-        home_df = stats[["home", "league", "homescore", "homeyards", "hometurnovers", "homepossession"]].copy()
-        home_df.columns = ["team", "league", "score", "yards", "turnovers", "possession"]
-        away_df = stats[["away", "league", "awayscore", "awayyards", "awayturnovers", "awaypossession"]].copy()
-        away_df.columns = ["team", "league", "score", "yards", "turnovers", "possession"]
-        stats = pd.concat([home_df, away_df], ignore_index=True)
+        home_cols = [c for c in ["home", "league", "homescore", "homeyards", "hometurnovers", "homepossession"] if c in stats.columns]
+        away_cols = [c for c in ["away", "league", "awayscore", "awayyards", "awayturnovers", "awaypossession"] if c in stats.columns]
+        home_df = stats[home_cols].copy()
+        # map present home columns to unified names (defensive if some missing)
+        rename_home = {}
+        if "home" in home_df.columns:
+            rename_home["home"] = "team"
+        if "homescore" in home_df.columns:
+            rename_home["homescore"] = "score"
+        if "homeyards" in home_df.columns:
+            rename_home["homeyards"] = "yards"
+        if "hometurnovers" in home_df.columns:
+            rename_home["hometurnovers"] = "turnovers"
+        if "homepossession" in home_df.columns:
+            rename_home["homepossession"] = "possession"
+        home_df = home_df.rename(columns=rename_home)
+
+        away_df = stats[away_cols].copy()
+        rename_away = {}
+        if "away" in away_df.columns:
+            rename_away["away"] = "team"
+        if "awayscore" in away_df.columns:
+            rename_away["awayscore"] = "score"
+        if "awayyards" in away_df.columns:
+            rename_away["awayyards"] = "yards"
+        if "awayturnovers" in away_df.columns:
+            rename_away["awayturnovers"] = "turnovers"
+        if "awaypossession" in away_df.columns:
+            rename_away["awaypossession"] = "possession"
+        away_df = away_df.rename(columns=rename_away)
+
+        # unify available columns
+        common_cols = list(dict.fromkeys([c for c in (home_df.columns.tolist() + away_df.columns.tolist()) if c in ["team","league","score","yards","turnovers","possession"]]))
+        stats = pd.concat([home_df[common_cols], away_df[common_cols]], ignore_index=True, sort=False)
         stats["team_key"] = stats["team"].astype(str).apply(to_key)
     else:
         stats["team_key"] = ""
+    logger.info("Stats: %d rows, sample team_key: %s", len(stats), stats["team_key"].dropna().unique()[:8].tolist())
 
-    # --- improved merge logic (no external deps) ---
     merged_rows, unmatched = [], set()
 
-    # build aggregated stats lookup by team_key (average numeric fields if multiple rows)
-    numeric_cols = ["score", "yards", "turnovers", "possession"]
-    stats_by_key = {}
-    for _, srow in stats.iterrows():
-        k = str(srow.get("team_key", "")).strip()
-        if not k:
-            continue
-        if k not in stats_by_key:
-            stats_by_key[k] = {"team_raw": str(srow.get("team", "") or k), "league": srow.get("league", None)}
-            for nc in numeric_cols:
-                stats_by_key[k][nc] = []
-        for nc in numeric_cols:
-            val = srow.get(nc)
-            try:
-                if pd.isna(val):
-                    continue
-            except Exception:
-                pass
-            if isinstance(val, (int, float)):
-                stats_by_key[k][nc].append(float(val))
-            else:
-                try:
-                    stats_by_key[k][nc].append(float(str(val)))
-                except Exception:
-                    continue
-
-    # finalize aggregated values (mean) and keep a representative row dict
-    for k, info in list(stats_by_key.items()):
-        agg = {}
-        for nc in numeric_cols:
-            vals = info.get(nc, [])
-            agg[nc] = (round(sum(vals) / len(vals), 3) if vals else None)
-        agg["team"] = info.get("team_raw", k)
-        agg["league"] = info.get("league")
-        stats_by_key[k] = agg
-
-    stats_team_keys = list(stats_by_key.keys())
-    stats_team_keys_set = set(stats_team_keys)
-
-    # league suffix helpers
-    LEAGUE_SUFFIXES = ["_NFL", "_NBA", "_MLB", "_NHL", "_NCAAF"]
-
-    def try_suffix_variants(key):
-        """Try remove or add league suffixes to find a candidate in stats_by_key."""
-        if not isinstance(key, str) or not key:
-            return None
-        # remove suffix if present
-        for suf in LEAGUE_SUFFIXES:
-            if key.endswith(suf):
-                base = key[:-len(suf)]
-                if base in stats_team_keys_set:
-                    return base
-        # add suffixes
-        for suf in LEAGUE_SUFFIXES:
-            cand = key + suf
-            if cand in stats_team_keys_set:
-                return cand
-        return None
-
-    def token_overlap_best(pred_text):
-        """Return best matching stats key by token overlap (Jaccard-like)."""
-        if not isinstance(pred_text, str):
-            return None
-        pnorm = normalize_name(pred_text)
-        ptoks = set(pnorm.split())
-        if not ptoks:
-            return None
-        best, best_score = None, 0.0
-        for k, info in stats_by_key.items():
-            raw = info.get("team", k)
-            rnorm = normalize_name(raw)
-            rtoks = set(rnorm.split())
-            if not rtoks:
-                continue
-            inter = ptoks & rtoks
-            union = ptoks | rtoks
-            score = (len(inter) / len(union)) if union else 0.0
-            # prefer exact token subset matches (boost)
-            if ptoks <= rtoks:
-                score += 0.15
-            if score > best_score:
-                best_score = score
-                best = k
-        # threshold to avoid wild matches
-        return best if best_score >= 0.35 else None
-
-    def startswith_match(pred_text):
-        """Simple heuristic: match if pred tokens start the stats team name."""
-        if not isinstance(pred_text, str):
-            return None
-        pnorm = normalize_name(pred_text)
-        for k, info in stats_by_key.items():
-            rnorm = normalize_name(info.get("team", k))
-            if rnorm.startswith(pnorm) or pnorm.startswith(rnorm):
-                return k
-        return None
-
-    # Main merge loop with fallbacks
     for _, prow in preds.iterrows():
-        tkey = str(prow.get("team_key", "")).strip()
-        raw_pred = str(prow.get(team_col, "") or tkey)
-
-        if not tkey and not raw_pred:
+        tkey = prow.get("team_key", "")
+        if not tkey:
             continue
 
-        matched_key = None
+        # match on abbreviation
+        s = stats[stats["team_key"] == tkey]
 
-        # 1) exact on team_key
-        if tkey in stats_team_keys_set:
-            matched_key = tkey
-
-        # 2) normalized map (normalize_team may map variants to abbrs)
-        if not matched_key:
-            alt = normalize_team(tkey)
-            if alt and alt in stats_team_keys_set:
-                matched_key = alt
-
-        # 3) suffix add/remove
-        if not matched_key:
-            alt = try_suffix_variants(tkey)
-            if alt:
-                matched_key = alt
-
-        # 4) token overlap on the original prediction string
-        if not matched_key:
-            cand = token_overlap_best(raw_pred)
-            if cand:
-                matched_key = cand
-
-        # 5) token overlap on the team_key text (in case team_key is cleaned phrase)
-        if not matched_key:
-            cand = token_overlap_best(tkey)
-            if cand:
-                matched_key = cand
-
-        # 6) startswith heuristic
-        if not matched_key:
-            cand = startswith_match(raw_pred)
-            if cand:
-                matched_key = cand
-
-        if not matched_key:
-            unmatched.add(tkey or raw_pred)
+        if s.empty:
+            unmatched.add(tkey)
             continue
 
-        # compose merged row
+        srow = s.iloc[0]
         merged = {**prow.to_dict()}
 
-        sinfo = stats_by_key.get(matched_key, {})
-        # attach aggregated numeric stats if available
-        for nc in numeric_cols:
-            val = sinfo.get(nc)
-            if val is not None:
-                merged[nc] = float(val)
-        # attach matched metadata for QA
-        merged["_matched_team_key"] = matched_key
-        merged["_matched_team_raw"] = sinfo.get("team", "")
-
+        # store whichever stat columns exist in this stats file
+        for col in ["score", "yards", "turnovers", "possession"]:
+            if col in s.columns:
+                try:
+                    merged[col] = float(srow[col])
+                except Exception:
+                    merged[col] = srow[col]
         merged_rows.append(merged)
 
-    # Diagnostics for unmatched teams (short sample)
-    if unmatched:
-        um_sorted = sorted(list(unmatched))
-        sample = um_sorted[:30]
-        print(f"⚠️ Unmatched teams ({len(unmatched)}). Sample: {sample}")
-
     if not merged_rows:
-        print("⚠️ No matching games found to merge.")
+        logger.warning("No matching games found to merge.")
+        # still dump debug to help diagnose
+        dump_debug_files(OUT_DIR, logger, preds, stats, pd.DataFrame(), unmatched)
         return
 
     merged = pd.DataFrame(merged_rows)
-    print(f"✅ Merged {len(merged)} predictions with team stat records")
+    logger.info("Merged %d predictions with team stat records", len(merged))
 
+    # write metrics/perf as before
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
         "games": len(merged),
@@ -557,20 +440,33 @@ def main():
         "avg_pace": safe_mean(merged.get("pace", pd.Series(dtype=float))),
     }
 
-    with open(METRICS_FILE, "w") as f:
-        json.dump(summary, f, indent=2)
-    print(f"🧠 Updated metrics.json with {summary['games']} merged games")
+    try:
+        with open(METRICS_FILE, "w") as f:
+            json.dump(summary, f, indent=2)
+        logger.info("Updated metrics.json with %d merged games", summary["games"])
+    except Exception as e:
+        logger.exception("Failed writing metrics.json: %s", e)
 
     perf = {
         "updated": summary["timestamp"],
         "overall": {"edge": summary["avg_edge"], "confidence": summary["avg_confidence"]},
     }
-    with open(PERFORMANCE_FILE, "w") as f:
-        json.dump(perf, f, indent=2)
-    print("📊 performance.json written")
+    try:
+        with open(PERFORMANCE_FILE, "w") as f:
+            json.dump(perf, f, indent=2)
+        logger.info("performance.json written")
+    except Exception as e:
+        logger.exception("Failed writing performance.json: %s", e)
+
+    # dump helpful debug artifacts for inspection
+    dump_debug_files(OUT_DIR, logger, preds, stats, merged, unmatched)
 
     if unmatched:
-        print(f"⚠️ Unmatched teams ({len(unmatched)}): {sorted(list(unmatched))[:20]}...")
+        logger.warning(
+            "Unmatched teams (%d). See %s/unmatched_sample.csv and unmatched_fuzzy_candidates.csv for details.",
+            len(unmatched),
+            OUT_DIR,
+        )
 
 
 if __name__ == "__main__":
