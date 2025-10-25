@@ -12,12 +12,13 @@ if not API_KEY:
 
 HEADERS = {"x-apisports-key": API_KEY}
 
+# ✅ Correct league IDs for API-Sports
 LEAGUE_ENDPOINTS = {
     "nfl": "https://v1.american-football.api-sports.io/teams?league=1&season=2025",
     "ncaaf": "https://v1.american-football.api-sports.io/teams?league=2&season=2025",
-    "nba": "https://v1.basketball.api-sports.io/teams?season=2025",
-    "mlb": "https://v1.baseball.api-sports.io/teams?season=2025",
-    "nhl": "https://v1.hockey.api-sports.io/teams?season=2025",
+    "nba": "https://v1.basketball.api-sports.io/teams?league=12&season=2025",
+    "mlb": "https://v1.baseball.api-sports.io/teams?league=1&season=2025",
+    "nhl": "https://v1.hockey.api-sports.io/teams?league=57&season=2025",
 }
 
 DATA_DIR = "Data"
