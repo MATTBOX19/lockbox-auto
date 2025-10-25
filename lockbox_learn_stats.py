@@ -302,11 +302,13 @@ def normalize_team(t):
             return abbr
     return t
 
+
 def safe_mean(series):
     try:
         return round(series.dropna().astype(float).mean(), 3)
     except Exception:
         return 0.0
+
 
 def main():
     if not PRED_FILE.exists() or not STATS_FILE.exists():
@@ -330,12 +332,12 @@ def main():
 
     print(f"✅ Using team column(s): ['{team_col}']")
 
-       # --- improved normalization & merge logic ---
+    # --- improved normalization & merge logic ---
     def normalize_name(x: str) -> str:
         if not isinstance(x, str):
             return ""
         x = x.upper().strip()
-        x = re.sub(r"\(.*?\)", "", x)          # remove (ATS), (ML), etc.
+        x = re.sub(r"\(.*?\)", "", x)  # remove (ATS), (ML), etc.
         x = re.sub(r"[^A-Z0-9 ]+", "", x)
         x = re.sub(r"\s+", " ", x)
         return x.strip()
@@ -354,8 +356,18 @@ def main():
     # normalize predictions team names
     preds["team_key"] = preds[team_col].astype(str).apply(to_key)
 
-    # normalize stats team column (your CSV has 'team')
-    stats["team_key"] = stats["team"].astype(str).apply(to_key)
+    # --- handle game-level stats with Home/Away ---
+    if "team" in stats.columns:
+        stats["team_key"] = stats["team"].astype(str).apply(to_key)
+    elif "home" in stats.columns and "away" in stats.columns:
+        home_df = stats[["home", "league", "homescore", "homeyards", "hometurnovers", "homepossession"]].copy()
+        home_df.columns = ["team", "league", "score", "yards", "turnovers", "possession"]
+        away_df = stats[["away", "league", "awayscore", "awayyards", "awayturnovers", "awaypossession"]].copy()
+        away_df.columns = ["team", "league", "score", "yards", "turnovers", "possession"]
+        stats = pd.concat([home_df, away_df], ignore_index=True)
+        stats["team_key"] = stats["team"].astype(str).apply(to_key)
+    else:
+        stats["team_key"] = ""
 
     merged_rows, unmatched = [], set()
 
@@ -373,11 +385,13 @@ def main():
 
         srow = s.iloc[0]
         merged = {**prow.to_dict()}
-        for col in ["epa_off", "epa_def", "success_off", "success_def", "pace"]:
+
+        # --- Fix #2: use the columns that actually exist in your team_stats_latest.csv ---
+        for col in ["score", "yards", "turnovers", "possession"]:
             if col in s.columns:
                 merged[col] = float(srow[col])
-        merged_rows.append(merged)
 
+        merged_rows.append(merged)
 
     if not merged_rows:
         print("⚠️ No matching games found to merge.")
@@ -412,6 +426,7 @@ def main():
 
     if unmatched:
         print(f"⚠️ Unmatched teams ({len(unmatched)}): {sorted(list(unmatched))[:20]}...")
+
 
 if __name__ == "__main__":
     main()
