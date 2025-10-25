@@ -1,29 +1,38 @@
-import pandas as pd, datetime as dt, csv
+#!/usr/bin/env python3
+"""
+fetch_nfl_githubdata.py — Free NFL data fetcher (public GitHub JSON source)
 
-URL = "https://raw.githubusercontent.com/nflverse/nflfastR-data/master/data/games.csv.gz"
+Pulls weekly team stats and saves to Data/nfl_team_stats.csv.
+This uses a free, public dataset mirrored from nflfastR and Pro-Football-Reference.
+"""
 
-def fetch_team_stats():
-    df = pd.read_csv(URL, compression="gzip")
-    recent = df[df["season"] >= 2023]
-    team_stats = (
-        recent.groupby("home_team")[["home_score", "away_score"]]
-        .sum()
-        .rename(columns={"home_score": "points_for", "away_score": "points_against"})
-    )
-    team_stats["games_played"] = recent.groupby("home_team").size().values
-    team_stats.reset_index(inplace=True)
-    now = dt.datetime.utcnow().isoformat() + "Z"
-    team_stats["sport"] = "NFL"
-    team_stats["updated_at"] = now
-    return team_stats.to_dict(orient="records")
+import os
+import pandas as pd
+from pathlib import Path
+import requests
 
-def write_csv(rows, path):
-    if not rows: return
-    with open(path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=rows[0].keys())
-        w.writeheader(); w.writerows(rows)
+DATA_DIR = Path("Data")
+DATA_DIR.mkdir(exist_ok=True)
+OUT_FILE = DATA_DIR / "nfl_team_stats.csv"
+
+def fetch_and_save():
+    try:
+        print("🏈 Fetching NFL data from GitHub JSON...")
+        url = "https://raw.githubusercontent.com/nflverse/nflfastR-data/master/data/team_stats.csv"
+        df = pd.read_csv(url)
+        df = df[["season", "week", "team", "offense_pass_epa", "offense_rush_epa", "defense_epa", "total_yards", "points_scored"]]
+        df.rename(columns={
+            "team": "Team",
+            "season": "Season",
+            "week": "Week",
+            "points_scored": "Points"
+        }, inplace=True)
+        df.to_csv(OUT_FILE, index=False)
+        print(f"✅ Saved NFL stats → {OUT_FILE} ({len(df)} rows)")
+        return df
+    except Exception as e:
+        print(f"❌ NFL fetch failed: {e}")
+        return pd.DataFrame()
 
 if __name__ == "__main__":
-    rows = fetch_team_stats()
-    write_csv(rows, "Data/nfl_team_stats_free.csv")
-    print(f"Saved NFL: {len(rows)} rows → Data/nfl_team_stats_free.csv")
+    fetch_and_save()
