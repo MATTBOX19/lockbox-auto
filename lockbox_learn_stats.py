@@ -317,7 +317,7 @@ def main():
     if "sport" in stats.columns:
         stats = stats.rename(columns={"sport": "league"})
 
-   team_col = next((c for c in ["BestPick", "bestpick", "team1", "home", "team"] if c in preds.columns), None)
+       team_col = next((c for c in ["BestPick", "bestpick", "team1", "home", "team"] if c in preds.columns), None)
     if not team_col:
         logger.error("No usable team column found. Columns: %s", list(preds.columns))
         return
