@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-fetch_sportsdata.py — LockBox SportsData.io Team Stats Aggregator (quota-safe)
+fetch_sportsdata.py — LockBox SportsData.io Team Stats Aggregator (offline-safe)
 
 Purpose:
   • Fetch team stats for NFL, NCAAF, NBA, NHL, MLB
-  • Stops gracefully if quota is exceeded (no overwrites)
-  • Always merges any existing per-sport CSVs into Data/team_stats_latest.csv
+  • Auto-rebuild per-sport CSVs from team_stats_latest.csv if quota is exceeded
+  • Never overwrites good data when API is blocked
 
 Environment:
   SPORTSDATA_IO = your SportsData.io API key
@@ -21,13 +21,12 @@ from pathlib import Path
 
 API_KEY = os.getenv("SPORTSDATA_IO")
 if not API_KEY:
-    raise SystemExit("❌ Missing SPORTSDATA_IO environment variable")
+    print("⚠️ Missing SPORTSDATA_IO key (offline rebuild mode only).")
 
 DATA_DIR = Path("Data")
 DATA_DIR.mkdir(exist_ok=True)
 OUT_FILE = DATA_DIR / "team_stats_latest.csv"
 
-# --- Config ---
 SPORTS_CONFIG = {
     "NFL": {
         "endpoint": "https://api.sportsdata.io/v3/nfl/stats/json/TeamGameStatsFinal/{season}/{week}",
@@ -54,12 +53,11 @@ SPORTS_CONFIG = {
 }
 
 
-# --- Helpers ---
 def safe_get(url):
     try:
         r = requests.get(url, headers={"Ocp-Apim-Subscription-Key": API_KEY}, timeout=20)
         if r.status_code == 403 and "quota" in r.text.lower():
-            print("🚫 Quota exceeded — stopping all fetches (keeping old data).")
+            print("🚫 Quota exceeded — switching to offline rebuild mode.")
             raise StopIteration
         if r.status_code != 200:
             print(f"⚠️ {url} → HTTP {r.status_code}")
@@ -100,7 +98,6 @@ def parse_games(sport, data):
 
 
 def append_or_keep(path, new_rows):
-    """Keep existing file if new_rows is empty, else append and dedupe."""
     if not new_rows:
         print(f"↩️ No new data for {path} (keeping existing).")
         return
@@ -108,8 +105,7 @@ def append_or_keep(path, new_rows):
     if path.exists():
         try:
             df_old = pd.read_csv(path)
-            df = pd.concat([df_old, df_new], ignore_index=True)
-            df.drop_duplicates(inplace=True)
+            df = pd.concat([df_old, df_new], ignore_index=True).drop_duplicates()
         except Exception:
             df = df_new
     else:
@@ -118,7 +114,25 @@ def append_or_keep(path, new_rows):
     print(f"💾 Saved {path} ({len(df)} rows).")
 
 
-# --- Main ---
+def rebuild_from_latest():
+    """If we’re offline or quota-limited, rebuild per-sport CSVs from team_stats_latest.csv."""
+    if not OUT_FILE.exists():
+        print("⚠️ No unified file found to rebuild from.")
+        return False
+
+    df = pd.read_csv(OUT_FILE)
+    if "Sport" not in df.columns:
+        print("⚠️ Unified file has no 'Sport' column — skipping rebuild.")
+        return False
+
+    for sport in df["Sport"].dropna().unique():
+        sport_df = df[df["Sport"] == sport]
+        path = DATA_DIR / f"{sport.lower()}_team_stats.csv"
+        sport_df.to_csv(path, index=False)
+        print(f"🔁 Restored {sport} → {path} ({len(sport_df)} rows)")
+    return True
+
+
 def fetch_all():
     combined = []
 
@@ -154,12 +168,13 @@ def fetch_all():
                 combined.extend(sport_games)
 
     except StopIteration:
-        print("🛑 Quota stop detected — merging existing files instead.")
+        print("🛑 Quota stop detected — performing offline rebuild.")
+        rebuild_from_latest()
 
-    # --- Merge what we have locally ---
+    # Merge available data
     parts = list(DATA_DIR.glob("*_team_stats.csv"))
     if not parts:
-        print("⚠️ No local per-sport CSVs to merge.")
+        print("⚠️ No per-sport CSVs to merge.")
         return
 
     dfs = []
