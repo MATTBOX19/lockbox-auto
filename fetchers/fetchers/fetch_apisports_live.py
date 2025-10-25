@@ -3,86 +3,57 @@ import requests
 import pandas as pd
 from datetime import datetime
 
-# --------------------------------------------
-# CONFIG
-# --------------------------------------------
 API_KEY = os.getenv("APISPORTS_KEY")
-if not API_KEY:
-    raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
-
 HEADERS = {"x-apisports-key": API_KEY}
 
-# ✅ Correct league IDs for API-Sports
-LEAGUE_ENDPOINTS = {
-    "nfl": "https://v1.american-football.api-sports.io/teams?league=1&season=2025",
-    "ncaaf": "https://v1.american-football.api-sports.io/teams?league=2&season=2025",
-    "nba": "https://v1.basketball.api-sports.io/teams?league=12&season=2025",
-    "mlb": "https://v1.baseball.api-sports.io/teams?league=1&season=2025",
-    "nhl": "https://v1.hockey.api-sports.io/teams?league=57&season=2025",
+LEAGUES = {
+    "NFL": ("american-football", 1),
+    "NCAAF": ("american-football", 2),
+    "NBA": ("basketball", 12),
+    "MLB": ("baseball", 1),
+    "NHL": ("hockey", 57),
 }
 
-DATA_DIR = "Data"
-os.makedirs(DATA_DIR, exist_ok=True)
-
-
-def fetch_league(league_name, url):
-    """Fetch team data for one league."""
-    print(f"📊 Fetching {league_name.upper()} data...")
+def fetch_teams(sport, league_id, season=2025):
+    url = f"https://v1.{sport}.api-sports.io/teams"
+    params = {"league": league_id, "season": season}
     try:
-        response = requests.get(url, headers=HEADERS, timeout=30)
-        data = response.json()
+        r = requests.get(url, headers=HEADERS, params=params, timeout=15)
+        data = r.json()
+        if "response" not in data or not data["response"]:
+            print(f"⚠️ {sport.upper()}: No data returned.")
+            if "errors" in data:
+                print("  Raw errors:", data["errors"])
+            return pd.DataFrame()
+        df = pd.json_normalize(data["response"])
+        print(f"✅ {sport.upper()}: {len(df)} teams fetched.")
+        return df
     except Exception as e:
-        print(f"❌ {league_name.upper()} request failed: {e}")
+        print(f"❌ {sport.upper()} fetch failed:", e)
         return pd.DataFrame()
-
-    if "response" not in data or not data["response"]:
-        print(f"⚠️ {league_name.upper()}: No data returned.")
-        print(f"  Raw errors: {data.get('errors', 'None')}")
-        return pd.DataFrame()
-
-    teams = []
-    for t in data["response"]:
-        teams.append({
-            "league": league_name.upper(),
-            "id": t.get("id"),
-            "team": t.get("name"),
-            "code": t.get("code"),
-            "city": t.get("city"),
-            "stadium": t.get("stadium"),
-            "coach": t.get("coach"),
-            "owner": t.get("owner"),
-            "established": t.get("established"),
-            "logo": t.get("logo"),
-        })
-
-    df = pd.DataFrame(teams)
-    print(f"✅ {league_name.upper()}: {len(df)} teams fetched.")
-    return df
-
 
 def main():
     all_dfs = []
+    os.makedirs("Data", exist_ok=True)
 
-    for league, url in LEAGUE_ENDPOINTS.items():
-        df = fetch_league(league, url)
+    for league, (sport, league_id) in LEAGUES.items():
+        print(f"📊 Fetching {league} data...")
+        df = fetch_teams(sport, league_id)
         if not df.empty:
-            out_path = os.path.join(DATA_DIR, f"{league}_team_stats.csv")
-            df.to_csv(out_path, index=False)
-            print(f"💾 Saved {league.upper()} data → {out_path}")
+            csv_path = f"Data/{league.lower()}_team_stats.csv"
+            df.to_csv(csv_path, index=False)
+            print(f"💾 Saved {league} data → {csv_path}")
             all_dfs.append(df)
 
     if not all_dfs:
-        print("⚠️ No leagues returned data. Nothing to merge.")
+        print("⚠️ No leagues returned data.")
         return
 
     combined = pd.concat(all_dfs, ignore_index=True)
-    out_path = os.path.join(DATA_DIR, "team_stats_latest.csv")
-    combined.to_csv(out_path, index=False)
-
+    combined.to_csv("Data/team_stats_latest.csv", index=False)
     print(f"\n🎉 Combined {len(combined)} total teams across {len(all_dfs)} leagues")
-    print(f"✅ Saved merged file → {out_path}")
-    print(f"🕒 Completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
+    print("✅ Saved merged file → Data/team_stats_latest.csv")
+    print(f"🕒 Completed at {datetime.now():%Y-%m-%d %H:%M:%S}")
 
 if __name__ == "__main__":
     main()
