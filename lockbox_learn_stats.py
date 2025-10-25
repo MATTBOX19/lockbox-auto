@@ -369,29 +369,174 @@ def main():
     else:
         stats["team_key"] = ""
 
+    # --- improved merge logic (no external deps) ---
     merged_rows, unmatched = [], set()
 
+    # build aggregated stats lookup by team_key (average numeric fields if multiple rows)
+    numeric_cols = ["score", "yards", "turnovers", "possession"]
+    stats_by_key = {}
+    for _, srow in stats.iterrows():
+        k = str(srow.get("team_key", "")).strip()
+        if not k:
+            continue
+        if k not in stats_by_key:
+            stats_by_key[k] = {"team_raw": str(srow.get("team", "") or k), "league": srow.get("league", None)}
+            for nc in numeric_cols:
+                stats_by_key[k][nc] = []
+        for nc in numeric_cols:
+            val = srow.get(nc)
+            try:
+                if pd.isna(val):
+                    continue
+            except Exception:
+                pass
+            if isinstance(val, (int, float)):
+                stats_by_key[k][nc].append(float(val))
+            else:
+                try:
+                    stats_by_key[k][nc].append(float(str(val)))
+                except Exception:
+                    continue
+
+    # finalize aggregated values (mean) and keep a representative row dict
+    for k, info in list(stats_by_key.items()):
+        agg = {}
+        for nc in numeric_cols:
+            vals = info.get(nc, [])
+            agg[nc] = (round(sum(vals) / len(vals), 3) if vals else None)
+        agg["team"] = info.get("team_raw", k)
+        agg["league"] = info.get("league")
+        stats_by_key[k] = agg
+
+    stats_team_keys = list(stats_by_key.keys())
+    stats_team_keys_set = set(stats_team_keys)
+
+    # league suffix helpers
+    LEAGUE_SUFFIXES = ["_NFL", "_NBA", "_MLB", "_NHL", "_NCAAF"]
+
+    def try_suffix_variants(key):
+        """Try remove or add league suffixes to find a candidate in stats_by_key."""
+        if not isinstance(key, str) or not key:
+            return None
+        # remove suffix if present
+        for suf in LEAGUE_SUFFIXES:
+            if key.endswith(suf):
+                base = key[:-len(suf)]
+                if base in stats_team_keys_set:
+                    return base
+        # add suffixes
+        for suf in LEAGUE_SUFFIXES:
+            cand = key + suf
+            if cand in stats_team_keys_set:
+                return cand
+        return None
+
+    def token_overlap_best(pred_text):
+        """Return best matching stats key by token overlap (Jaccard-like)."""
+        if not isinstance(pred_text, str):
+            return None
+        pnorm = normalize_name(pred_text)
+        ptoks = set(pnorm.split())
+        if not ptoks:
+            return None
+        best, best_score = None, 0.0
+        for k, info in stats_by_key.items():
+            raw = info.get("team", k)
+            rnorm = normalize_name(raw)
+            rtoks = set(rnorm.split())
+            if not rtoks:
+                continue
+            inter = ptoks & rtoks
+            union = ptoks | rtoks
+            score = (len(inter) / len(union)) if union else 0.0
+            # prefer exact token subset matches (boost)
+            if ptoks <= rtoks:
+                score += 0.15
+            if score > best_score:
+                best_score = score
+                best = k
+        # threshold to avoid wild matches
+        return best if best_score >= 0.35 else None
+
+    def startswith_match(pred_text):
+        """Simple heuristic: match if pred tokens start the stats team name."""
+        if not isinstance(pred_text, str):
+            return None
+        pnorm = normalize_name(pred_text)
+        for k, info in stats_by_key.items():
+            rnorm = normalize_name(info.get("team", k))
+            if rnorm.startswith(pnorm) or pnorm.startswith(rnorm):
+                return k
+        return None
+
+    # Main merge loop with fallbacks
     for _, prow in preds.iterrows():
-        tkey = prow["team_key"]
-        if not tkey:
+        tkey = str(prow.get("team_key", "")).strip()
+        raw_pred = str(prow.get(team_col, "") or tkey)
+
+        if not tkey and not raw_pred:
             continue
 
-        # match on abbreviation
-        s = stats[stats["team_key"] == tkey]
+        matched_key = None
 
-        if s.empty:
-            unmatched.add(tkey)
+        # 1) exact on team_key
+        if tkey in stats_team_keys_set:
+            matched_key = tkey
+
+        # 2) normalized map (normalize_team may map variants to abbrs)
+        if not matched_key:
+            alt = normalize_team(tkey)
+            if alt and alt in stats_team_keys_set:
+                matched_key = alt
+
+        # 3) suffix add/remove
+        if not matched_key:
+            alt = try_suffix_variants(tkey)
+            if alt:
+                matched_key = alt
+
+        # 4) token overlap on the original prediction string
+        if not matched_key:
+            cand = token_overlap_best(raw_pred)
+            if cand:
+                matched_key = cand
+
+        # 5) token overlap on the team_key text (in case team_key is cleaned phrase)
+        if not matched_key:
+            cand = token_overlap_best(tkey)
+            if cand:
+                matched_key = cand
+
+        # 6) startswith heuristic
+        if not matched_key:
+            cand = startswith_match(raw_pred)
+            if cand:
+                matched_key = cand
+
+        if not matched_key:
+            unmatched.add(tkey or raw_pred)
             continue
 
-        srow = s.iloc[0]
+        # compose merged row
         merged = {**prow.to_dict()}
 
-        # --- Fix #2: use the columns that actually exist in your team_stats_latest.csv ---
-        for col in ["score", "yards", "turnovers", "possession"]:
-            if col in s.columns:
-                merged[col] = float(srow[col])
+        sinfo = stats_by_key.get(matched_key, {})
+        # attach aggregated numeric stats if available
+        for nc in numeric_cols:
+            val = sinfo.get(nc)
+            if val is not None:
+                merged[nc] = float(val)
+        # attach matched metadata for QA
+        merged["_matched_team_key"] = matched_key
+        merged["_matched_team_raw"] = sinfo.get("team", "")
 
         merged_rows.append(merged)
+
+    # Diagnostics for unmatched teams (short sample)
+    if unmatched:
+        um_sorted = sorted(list(unmatched))
+        sample = um_sorted[:30]
+        print(f"⚠️ Unmatched teams ({len(unmatched)}). Sample: {sample}")
 
     if not merged_rows:
         print("⚠️ No matching games found to merge.")
