@@ -612,6 +612,16 @@ def main():
             len(unmatched),
             OUT_DIR,
         )
+      
+          # --- quick summary output for cron visibility ---
+    if Path(METRICS_FILE).exists():
+        try:
+            with open(METRICS_FILE) as f:
+                m = json.load(f)
+            print(f"📊 LockBox Learn Stats → games:{m.get('games')} edge:{m.get('avg_edge')} conf:{m.get('avg_confidence')} at {m.get('timestamp')}")
+        except Exception as e:
+            print(f"⚠️ Unable to read metrics summary: {e}")
+
 
 
 if __name__ == "__main__":
