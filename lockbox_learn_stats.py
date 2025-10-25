@@ -449,7 +449,7 @@ def main():
         return
     logger.info("Using team column: %s", team_col)
 
-    # --- normalization ---
+    # --- normalization helpers ---
     def normalize_name(x: str) -> str:
         if not isinstance(x, str):
             return ""
@@ -474,7 +474,6 @@ def main():
     # Build team_key for predictions, skipping OU/Over/Under style picks
     def bestpick_to_teamkey(val: str) -> str:
         raw = str(val)
-        # If it's Over/Under or doesn't look like a team name, return empty (skip)
         up = raw.upper()
         if up.startswith("OVER") or up.startswith("UNDER"):
             return ""
