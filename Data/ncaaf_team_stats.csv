@@ -1,0 +1,699 @@
+league,id,team,code,city,stadium,coach,owner,established,logo
+NCAAF,36,Rice Owls,,,,,,,https://media.api-sports.io/american-football/teams/36.png
+NCAAF,39,Western Kentucky,,,,,,,https://media.api-sports.io/american-football/teams/39.png
+NCAAF,40,Austin Peay,,,,,,,https://media.api-sports.io/american-football/teams/40.png
+NCAAF,41,Northwestern,,,,,,,https://media.api-sports.io/american-football/teams/41.png
+NCAAF,42,Nebraska,,,,,,,https://media.api-sports.io/american-football/teams/42.png
+NCAAF,43,UNLV,,,,,,,https://media.api-sports.io/american-football/teams/43.png
+NCAAF,44,Idaho State,,,,,,,https://media.api-sports.io/american-football/teams/44.png
+NCAAF,45,Utah State,,,,,,,https://media.api-sports.io/american-football/teams/45.png
+NCAAF,46,UConn,,,,,,,https://media.api-sports.io/american-football/teams/46.png
+NCAAF,47,Illinois,,,,,,,https://media.api-sports.io/american-football/teams/47.png
+NCAAF,48,Wyoming,,,,,,,https://media.api-sports.io/american-football/teams/48.png
+NCAAF,49,Florida State,,,,,,,https://media.api-sports.io/american-football/teams/49.png
+NCAAF,50,Duquesne,,,,,,,https://media.api-sports.io/american-football/teams/50.png
+NCAAF,51,Florida Atlantic,,,,,,,https://media.api-sports.io/american-football/teams/51.png
+NCAAF,52,Charlotte,,,,,,,https://media.api-sports.io/american-football/teams/52.png
+NCAAF,53,North Carolina,,,,,,,https://media.api-sports.io/american-football/teams/53.png
+NCAAF,54,Florida A&M,,,,,,,https://media.api-sports.io/american-football/teams/54.png
+NCAAF,55,New Mexico State,,,,,,,https://media.api-sports.io/american-football/teams/55.png
+NCAAF,56,Nevada,,,,,,,https://media.api-sports.io/american-football/teams/56.png
+NCAAF,57,UTEP,,,,,,,https://media.api-sports.io/american-football/teams/57.png
+NCAAF,58,North Texas,,,,,,,https://media.api-sports.io/american-football/teams/58.png
+NCAAF,59,Hawai'i,,,,,,,https://media.api-sports.io/american-football/teams/59.png
+NCAAF,60,Vanderbilt,,,,,,,https://media.api-sports.io/american-football/teams/60.png
+NCAAF,61,Oklahoma State,,,,,,,https://media.api-sports.io/american-football/teams/61.png
+NCAAF,62,Central Michigan,,,,,,,https://media.api-sports.io/american-football/teams/62.png
+NCAAF,63,Pittsburgh,,,,,,,https://media.api-sports.io/american-football/teams/63.png
+NCAAF,64,West Virginia,,,,,,,https://media.api-sports.io/american-football/teams/64.png
+NCAAF,65,Wake Forest,,,,,,,https://media.api-sports.io/american-football/teams/65.png
+NCAAF,66,VMI,,,,,,,https://media.api-sports.io/american-football/teams/66.png
+NCAAF,67,Akron,,,,,,,https://media.api-sports.io/american-football/teams/67.png
+NCAAF,69,Tennessee,,,,,,,https://media.api-sports.io/american-football/teams/69.png
+NCAAF,70,Ball State,,,,,,,https://media.api-sports.io/american-football/teams/70.png
+NCAAF,71,UCF,,,,,,,https://media.api-sports.io/american-football/teams/71.png
+NCAAF,72,South Carolina State,,,,,,,https://media.api-sports.io/american-football/teams/72.png
+NCAAF,73,Florida International,,,,,,,https://media.api-sports.io/american-football/teams/73.png
+NCAAF,74,Bryant,,,,,,,https://media.api-sports.io/american-football/teams/74.png
+NCAAF,75,Toledo,,,,,,,https://media.api-sports.io/american-football/teams/75.png
+NCAAF,76,Long Island University,,,,,,,https://media.api-sports.io/american-football/teams/76.png
+NCAAF,77,Purdue,,,,,,,https://media.api-sports.io/american-football/teams/77.png
+NCAAF,78,Penn State,,,,,,,https://media.api-sports.io/american-football/teams/78.png
+NCAAF,79,Northern Illinois,,,,,,,https://media.api-sports.io/american-football/teams/79.png
+NCAAF,80,Eastern Illinois,,,,,,,https://media.api-sports.io/american-football/teams/80.png
+NCAAF,81,UAB,,,,,,,https://media.api-sports.io/american-football/teams/81.png
+NCAAF,82,Alabama A&M,,,,,,,https://media.api-sports.io/american-football/teams/82.png
+NCAAF,83,Missouri,,,,,,,https://media.api-sports.io/american-football/teams/83.png
+NCAAF,84,Louisiana Tech,,,,,,,https://media.api-sports.io/american-football/teams/84.png
+NCAAF,85,Minnesota,,,,,,,https://media.api-sports.io/american-football/teams/85.png
+NCAAF,86,Arizona State,,,,,,,https://media.api-sports.io/american-football/teams/86.png
+NCAAF,87,Northern Arizona,,,,,,,https://media.api-sports.io/american-football/teams/87.png
+NCAAF,88,Fresno State,,,,,,,https://media.api-sports.io/american-football/teams/88.png
+NCAAF,89,Cal Poly,,,,,,,https://media.api-sports.io/american-football/teams/89.png
+NCAAF,90,San José State,,,,,,,https://media.api-sports.io/american-football/teams/90.png
+NCAAF,91,Portland State,,,,,,,https://media.api-sports.io/american-football/teams/91.png
+NCAAF,92,Michigan State,,,,,,,https://media.api-sports.io/american-football/teams/92.png
+NCAAF,93,Western Michigan,,,,,,,https://media.api-sports.io/american-football/teams/93.png
+NCAAF,94,Eastern Michigan,,,,,,,https://media.api-sports.io/american-football/teams/94.png
+NCAAF,95,Eastern Kentucky,,,,,,,https://media.api-sports.io/american-football/teams/95.png
+NCAAF,96,Old Dominion,,,,,,,https://media.api-sports.io/american-football/teams/96.png
+NCAAF,97,Virginia Tech,,,,,,,https://media.api-sports.io/american-football/teams/97.png
+NCAAF,98,William & Mary,,,,,,,https://media.api-sports.io/american-football/teams/98.png
+NCAAF,99,Duke,,,,,,,https://media.api-sports.io/american-football/teams/99.png
+NCAAF,100,Temple,,,,,,,https://media.api-sports.io/american-football/teams/100.png
+NCAAF,101,Kansas,,,,,,,https://media.api-sports.io/american-football/teams/101.png
+NCAAF,102,Tennessee Tech,,,,,,,https://media.api-sports.io/american-football/teams/102.png
+NCAAF,103,Indiana,,,,,,,https://media.api-sports.io/american-football/teams/103.png
+NCAAF,104,Colorado,,,,,,,https://media.api-sports.io/american-football/teams/104.png
+NCAAF,105,TCU,,,,,,,https://media.api-sports.io/american-football/teams/105.png
+NCAAF,106,Alabama,,,,,,,https://media.api-sports.io/american-football/teams/106.png
+NCAAF,107,Ohio State,,,,,,,https://media.api-sports.io/american-football/teams/107.png
+NCAAF,108,Notre Dame,,,,,,,https://media.api-sports.io/american-football/teams/108.png
+NCAAF,109,Georgia,,,,,,,https://media.api-sports.io/american-football/teams/109.png
+NCAAF,110,Oregon,,,,,,,https://media.api-sports.io/american-football/teams/110.png
+NCAAF,111,Texas A&M,,,,,,,https://media.api-sports.io/american-football/teams/111.png
+NCAAF,113,Florida,,,,,,,https://media.api-sports.io/american-football/teams/113.png
+NCAAF,114,Utah,,,,,,,https://media.api-sports.io/american-football/teams/114.png
+NCAAF,115,Michigan,,,,,,,https://media.api-sports.io/american-football/teams/115.png
+NCAAF,116,Colorado State,,,,,,,https://media.api-sports.io/american-football/teams/116.png
+NCAAF,117,Oklahoma,,,,,,,https://media.api-sports.io/american-football/teams/117.png
+NCAAF,118,Baylor,,,,,,,https://media.api-sports.io/american-football/teams/118.png
+NCAAF,120,East Carolina,,,,,,,https://media.api-sports.io/american-football/teams/120.png
+NCAAF,121,NC State,,,,,,,https://media.api-sports.io/american-football/teams/121.png
+NCAAF,122,USC,,,,,,,https://media.api-sports.io/american-football/teams/122.png
+NCAAF,123,Miami,,,,,,,https://media.api-sports.io/american-football/teams/123.png
+NCAAF,124,Bethune-Cookman,,,,,,,https://media.api-sports.io/american-football/teams/124.png
+NCAAF,125,Wisconsin,,,,,,,https://media.api-sports.io/american-football/teams/125.png
+NCAAF,126,Illinois State,,,,,,,https://media.api-sports.io/american-football/teams/126.png
+NCAAF,127,Arkansas,,,,,,,https://media.api-sports.io/american-football/teams/127.png
+NCAAF,128,Cincinnati,,,,,,,https://media.api-sports.io/american-football/teams/128.png
+NCAAF,129,Kentucky,,,,,,,https://media.api-sports.io/american-football/teams/129.png
+NCAAF,130,Miami (OH),,,,,,,https://media.api-sports.io/american-football/teams/130.png
+NCAAF,131,Ole Miss,,,,,,,https://media.api-sports.io/american-football/teams/131.png
+NCAAF,132,Troy,,,,,,,https://media.api-sports.io/american-football/teams/132.png
+NCAAF,133,UTSA,,,,,,,https://media.api-sports.io/american-football/teams/133.png
+NCAAF,134,Houston,,,,,,,https://media.api-sports.io/american-football/teams/134.png
+NCAAF,135,South Florida,,,,,,,https://media.api-sports.io/american-football/teams/135.png
+NCAAF,136,BYU,,,,,,,https://media.api-sports.io/american-football/teams/136.png
+NCAAF,137,Central Connecticut,,,,,,,https://media.api-sports.io/american-football/teams/137.png
+NCAAF,138,Iowa,,,,,,,https://media.api-sports.io/american-football/teams/138.png
+NCAAF,139,South Dakota State,,,,,,,https://media.api-sports.io/american-football/teams/139.png
+NCAAF,140,Maryland,,,,,,,https://media.api-sports.io/american-football/teams/140.png
+NCAAF,141,Buffalo State,,,,,,,https://media.api-sports.io/american-football/teams/141.png
+NCAAF,142,Boston College,,,,,,,https://media.api-sports.io/american-football/teams/142.png
+NCAAF,143,Rutgers,,,,,,,https://media.api-sports.io/american-football/teams/143.png
+NCAAF,144,Appalachian State,,,,,,,https://media.api-sports.io/american-football/teams/144.png
+NCAAF,145,Navy,,,,,,,https://media.api-sports.io/american-football/teams/145.png
+NCAAF,146,Delaware,,,,,,,https://media.api-sports.io/american-football/teams/146.png
+NCAAF,147,Virginia,,,,,,,https://media.api-sports.io/american-football/teams/147.png
+NCAAF,148,Richmond,,,,,,,https://media.api-sports.io/american-football/teams/148.png
+NCAAF,149,Air Force,,,,,,,https://media.api-sports.io/american-football/teams/149.png
+NCAAF,150,Northern Iowa,,,,,,,https://media.api-sports.io/american-football/teams/150.png
+NCAAF,151,Iowa State,,,,,,,https://media.api-sports.io/american-football/teams/151.png
+NCAAF,152,Southeast Missouri State,,,,,,,https://media.api-sports.io/american-football/teams/152.png
+NCAAF,153,UCLA,,,,,,,https://media.api-sports.io/american-football/teams/153.png
+NCAAF,154,Bowling Green,,,,,,,https://media.api-sports.io/american-football/teams/154.png
+NCAAF,155,San Diego State,,,,,,,https://media.api-sports.io/american-football/teams/155.png
+NCAAF,156,Arizona,,,,,,,https://media.api-sports.io/american-football/teams/156.png
+NCAAF,157,North Dakota,,,,,,,https://media.api-sports.io/american-football/teams/157.png
+NCAAF,158,Marshall,,,,,,,https://media.api-sports.io/american-football/teams/158.png
+NCAAF,159,Norfolk State,,,,,,,https://media.api-sports.io/american-football/teams/159.png
+NCAAF,160,Tulsa,,,,,,,https://media.api-sports.io/american-football/teams/160.png
+NCAAF,161,California,,,,,,,https://media.api-sports.io/american-football/teams/161.png
+NCAAF,162,UC Davis,,,,,,,https://media.api-sports.io/american-football/teams/162.png
+NCAAF,163,South Alabama,,,,,,,https://media.api-sports.io/american-football/teams/163.png
+NCAAF,164,Nicholls,,,,,,,https://media.api-sports.io/american-football/teams/164.png
+NCAAF,165,Texas State,,,,,,,https://media.api-sports.io/american-football/teams/165.png
+NCAAF,166,Georgia Southern,,,,,,,https://media.api-sports.io/american-football/teams/166.png
+NCAAF,167,Morgan State,,,,,,,https://media.api-sports.io/american-football/teams/167.png
+NCAAF,168,Ohio,,,,,,,https://media.api-sports.io/american-football/teams/168.png
+NCAAF,169,James Madison,,,,,,,https://media.api-sports.io/american-football/teams/169.png
+NCAAF,170,Middle Tennessee,,,,,,,https://media.api-sports.io/american-football/teams/170.png
+NCAAF,171,Auburn,,,,,,,https://media.api-sports.io/american-football/teams/171.png
+NCAAF,172,Mercer,,,,,,,https://media.api-sports.io/american-football/teams/172.png
+NCAAF,173,Elon,,,,,,,https://media.api-sports.io/american-football/teams/173.png
+NCAAF,174,Kansas State,,,,,,,https://media.api-sports.io/american-football/teams/174.png
+NCAAF,175,South Dakota,,,,,,,https://media.api-sports.io/american-football/teams/175.png
+NCAAF,176,Coastal Carolina,,,,,,,https://media.api-sports.io/american-football/teams/176.png
+NCAAF,177,Army,,,,,,,https://media.api-sports.io/american-football/teams/177.png
+NCAAF,178,Southern Miss,,,,,,,https://media.api-sports.io/american-football/teams/178.png
+NCAAF,179,Liberty,,,,,,,https://media.api-sports.io/american-football/teams/179.png
+NCAAF,180,Tulane,,,,,,,https://media.api-sports.io/american-football/teams/180.png
+NCAAF,181,UMass,,,,,,,https://media.api-sports.io/american-football/teams/181.png
+NCAAF,182,Louisiana,,,,,,,https://media.api-sports.io/american-football/teams/182.png
+NCAAF,183,SE Louisiana,,,,,,,https://media.api-sports.io/american-football/teams/183.png
+NCAAF,184,Arkansas State,,,,,,,https://media.api-sports.io/american-football/teams/184.png
+NCAAF,185,Grambling,,,,,,,https://media.api-sports.io/american-football/teams/185.png
+NCAAF,186,Mississippi State,,,,,,,https://media.api-sports.io/american-football/teams/186.png
+NCAAF,187,Memphis,,,,,,,https://media.api-sports.io/american-football/teams/187.png
+NCAAF,188,South Carolina,,,,,,,https://media.api-sports.io/american-football/teams/188.png
+NCAAF,189,Georgia State,,,,,,,https://media.api-sports.io/american-football/teams/189.png
+NCAAF,190,SMU,,,,,,,https://media.api-sports.io/american-football/teams/190.png
+NCAAF,191,Stanford,,,,,,,https://media.api-sports.io/american-football/teams/191.png
+NCAAF,192,Colgate,,,,,,,https://media.api-sports.io/american-football/teams/192.png
+NCAAF,193,Texas Tech,,,,,,,https://media.api-sports.io/american-football/teams/193.png
+NCAAF,194,Murray State,,,,,,,https://media.api-sports.io/american-football/teams/194.png
+NCAAF,195,Texas,,,,,,,https://media.api-sports.io/american-football/teams/195.png
+NCAAF,196,UL Monroe,,,,,,,https://media.api-sports.io/american-football/teams/196.png
+NCAAF,197,Syracuse,,,,,,,https://media.api-sports.io/american-football/teams/197.png
+NCAAF,198,Louisville,,,,,,,https://media.api-sports.io/american-football/teams/198.png
+NCAAF,199,New Mexico,,,,,,,https://media.api-sports.io/american-football/teams/199.png
+NCAAF,200,Maine,,,,,,,https://media.api-sports.io/american-football/teams/200.png
+NCAAF,201,Washington State,,,,,,,https://media.api-sports.io/american-football/teams/201.png
+NCAAF,202,Idaho,,,,,,,https://media.api-sports.io/american-football/teams/202.png
+NCAAF,203,Oregon State,,,,,,,https://media.api-sports.io/american-football/teams/203.png
+NCAAF,204,Boise State,,,,,,,https://media.api-sports.io/american-football/teams/204.png
+NCAAF,205,Washington,,,,,,,https://media.api-sports.io/american-football/teams/205.png
+NCAAF,206,Kent State,,,,,,,https://media.api-sports.io/american-football/teams/206.png
+NCAAF,207,LSU,,,,,,,https://media.api-sports.io/american-football/teams/207.png
+NCAAF,208,Georgia Tech,,,,,,,https://media.api-sports.io/american-football/teams/208.png
+NCAAF,209,Clemson,,,,,,,https://media.api-sports.io/american-football/teams/209.png
+NCAAF,210,Samford,,,,,,,https://media.api-sports.io/american-football/teams/210.png
+NCAAF,211,Furman,,,,,,,https://media.api-sports.io/american-football/teams/211.png
+NCAAF,212,Southern Utah,,,,,,,https://media.api-sports.io/american-football/teams/212.png
+NCAAF,213,Charleston Southern,,,,,,,https://media.api-sports.io/american-football/teams/213.png
+NCAAF,214,Central Arkansas,,,,,,,https://media.api-sports.io/american-football/teams/214.png
+NCAAF,215,Western Illinois,,,,,,,https://media.api-sports.io/american-football/teams/215.png
+NCAAF,216,Lafayette,,,,,,,https://media.api-sports.io/american-football/teams/216.png
+NCAAF,217,Kennesaw State,,,,,,,https://media.api-sports.io/american-football/teams/217.png
+NCAAF,218,Indiana State,,,,,,,https://media.api-sports.io/american-football/teams/218.png
+NCAAF,219,Wagner,,,,,,,https://media.api-sports.io/american-football/teams/219.png
+NCAAF,220,Northern Colorado,,,,,,,https://media.api-sports.io/american-football/teams/220.png
+NCAAF,221,Alabama State,,,,,,,https://media.api-sports.io/american-football/teams/221.png
+NCAAF,222,Incarnate Word,,,,,,,https://media.api-sports.io/american-football/teams/222.png
+NCAAF,223,Holy Cross,,,,,,,https://media.api-sports.io/american-football/teams/223.png
+NCAAF,224,Robert Morris,,,,,,,https://media.api-sports.io/american-football/teams/224.png
+NCAAF,225,Gardner-Webb,,,,,,,https://media.api-sports.io/american-football/teams/225.png
+NCAAF,226,Western Carolina,,,,,,,https://media.api-sports.io/american-football/teams/226.png
+NCAAF,227,Weber State,,,,,,,https://media.api-sports.io/american-football/teams/227.png
+NCAAF,228,Alcorn State,,,,,,,https://media.api-sports.io/american-football/teams/228.png
+NCAAF,229,Lamar,,,,,,,https://media.api-sports.io/american-football/teams/229.png
+NCAAF,230,Howard,,,,,,,https://media.api-sports.io/american-football/teams/230.png
+NCAAF,231,Stephen F. Austin,,,,,,,https://media.api-sports.io/american-football/teams/231.png
+NCAAF,232,Southern,,,,,,,https://media.api-sports.io/american-football/teams/232.png
+NCAAF,233,Texas Southern,,,,,,,https://media.api-sports.io/american-football/teams/233.png
+NCAAF,234,McNeese,,,,,,,https://media.api-sports.io/american-football/teams/234.png
+NCAAF,236,Eastern Washington,,,,,,,https://media.api-sports.io/american-football/teams/236.png
+NCAAF,237,Arkansas-Pine Bluff,,,,,,,https://media.api-sports.io/american-football/teams/237.png
+NCAAF,238,Youngstown State,,,,,,,https://media.api-sports.io/american-football/teams/238.png
+NCAAF,239,Missouri State,,,,,,,https://media.api-sports.io/american-football/teams/239.png
+NCAAF,240,Wofford,,,,,,,https://media.api-sports.io/american-football/teams/240.png
+NCAAF,241,Abilene Christian,,,,,,,https://media.api-sports.io/american-football/teams/241.png
+NCAAF,242,Villanova,,,,,,,https://media.api-sports.io/american-football/teams/242.png
+NCAAF,243,Southern Illinois,,,,,,,https://media.api-sports.io/american-football/teams/243.png
+NCAAF,244,Towson,,,,,,,https://media.api-sports.io/american-football/teams/244.png
+NCAAF,245,Bucknell,,,,,,,https://media.api-sports.io/american-football/teams/245.png
+NCAAF,246,Stony Brook,,,,,,,https://media.api-sports.io/american-football/teams/246.png
+NCAAF,247,UT Martin,,,,,,,https://media.api-sports.io/american-football/teams/247.png
+NCAAF,248,North Carolina A&T,,,,,,,https://media.api-sports.io/american-football/teams/248.png
+NCAAF,249,Campbell,,,,,,,https://media.api-sports.io/american-football/teams/249.png
+NCAAF,250,Jacksonville State,,,,,,,https://media.api-sports.io/american-football/teams/250.png
+NCAAF,251,Northwestern State,,,,,,,https://media.api-sports.io/american-football/teams/251.png
+NCAAF,252,Tennessee State,,,,,,,https://media.api-sports.io/american-football/teams/252.png
+NCAAF,253,Montana State,,,,,,,https://media.api-sports.io/american-football/teams/253.png
+NCAAF,254,North Dakota State,,,,,,,https://media.api-sports.io/american-football/teams/254.png
+NCAAF,255,Chattanooga,,,,,,,https://media.api-sports.io/american-football/teams/255.png
+NCAAF,256,Rhode Island,,,,,,,https://media.api-sports.io/american-football/teams/256.png
+NCAAF,257,Fordham,,,,,,,https://media.api-sports.io/american-football/teams/257.png
+NCAAF,258,Sacramento State,,,,,,,https://media.api-sports.io/american-football/teams/258.png
+NCAAF,259,Houston Christian,,,,,,,https://media.api-sports.io/american-football/teams/259.png
+NCAAF,260,The Citadel,,,,,,,https://media.api-sports.io/american-football/teams/260.png
+NCAAF,261,New Hampshire,,,,,,,https://media.api-sports.io/american-football/teams/261.png
+NCAAF,262,East Tennessee State,,,,,,,https://media.api-sports.io/american-football/teams/262.png
+NCAAF,263,North Alabama,,,,,,,https://media.api-sports.io/american-football/teams/263.png
+NCAAF,264,Utah Tech,,,,,,,https://media.api-sports.io/american-football/teams/264.png
+NCAAF,265,Morehead State,,,,,,,https://media.api-sports.io/american-football/teams/265.png
+NCAAF,266,North Greenville,,,,,,,https://media.api-sports.io/american-football/teams/266.png
+NCAAF,267,Monmouth,,,,,,,https://media.api-sports.io/american-football/teams/267.png
+NCAAF,268,Limestone,,,,,,,https://media.api-sports.io/american-football/teams/268.png
+NCAAF,269,Mars Hill,,,,,,,https://media.api-sports.io/american-football/teams/269.png
+NCAAF,271,Mississippi Valley State,,,,,,,https://media.api-sports.io/american-football/teams/271.png
+NCAAF,274,Western Oregon,,,,,,,https://media.api-sports.io/american-football/teams/274.png
+NCAAF,275,Lehigh,,,,,,,https://media.api-sports.io/american-football/teams/275.png
+NCAAF,276,Merrimack,,,,,,,https://media.api-sports.io/american-football/teams/276.png
+NCAAF,277,Dayton,,,,,,,https://media.api-sports.io/american-football/teams/277.png
+NCAAF,278,Marist,,,,,,,https://media.api-sports.io/american-football/teams/278.png
+NCAAF,279,Georgetown,,,,,,,https://media.api-sports.io/american-football/teams/279.png
+NCAAF,280,Sacred Heart,,,,,,,https://media.api-sports.io/american-football/teams/280.png
+NCAAF,281,Butler,,,,,,,https://media.api-sports.io/american-football/teams/281.png
+NCAAF,283,Davidson,,,,,,,https://media.api-sports.io/american-football/teams/283.png
+NCAAF,284,Delaware State,,,,,,,https://media.api-sports.io/american-football/teams/284.png
+NCAAF,285,Lincoln (PA),,,,,,,https://media.api-sports.io/american-football/teams/285.png
+NCAAF,286,Bloomsburg,,,,,,,https://media.api-sports.io/american-football/teams/286.png
+NCAAF,287,Stonehill,,,,,,,https://media.api-sports.io/american-football/teams/287.png
+NCAAF,288,Montana,,,,,,,https://media.api-sports.io/american-football/teams/288.png
+NCAAF,289,Drake,,,,,,,https://media.api-sports.io/american-football/teams/289.png
+NCAAF,290,Stetson,,,,,,,https://media.api-sports.io/american-football/teams/290.png
+NCAAF,292,Miles College,,,,,,,https://media.api-sports.io/american-football/teams/292.png
+NCAAF,293,Hampton,,,,,,,https://media.api-sports.io/american-football/teams/293.png
+NCAAF,294,Presbyterian,,,,,,,https://media.api-sports.io/american-football/teams/294.png
+NCAAF,295,Prairie View A&M,,,,,,,https://media.api-sports.io/american-football/teams/295.png
+NCAAF,296,Florida Memorial University,,,,,,,https://media.api-sports.io/american-football/teams/296.png
+NCAAF,297,Lane,,,,,,,https://media.api-sports.io/american-football/teams/297.png
+NCAAF,298,Valparaiso,,,,,,,https://media.api-sports.io/american-football/teams/298.png
+NCAAF,300,San Diego,,,,,,,https://media.api-sports.io/american-football/teams/300.png
+NCAAF,301,La Verne,,,,,,,https://media.api-sports.io/american-football/teams/301.png
+NCAAF,302,North Carolina Central,,,,,,,https://media.api-sports.io/american-football/teams/302.png
+NCAAF,303,Jackson State,,,,,,,https://media.api-sports.io/american-football/teams/303.png
+NCAAF,304,Assumption,,,,,,,https://media.api-sports.io/american-football/teams/304.png
+NCAAF,305,Thomas More College,,,,,,,https://media.api-sports.io/american-football/teams/305.png
+NCAAF,306,Virginia Lynchburg,,,,,,,https://media.api-sports.io/american-football/teams/306.png
+NCAAF,307,Post University,,,,,,,https://media.api-sports.io/american-football/teams/307.png
+NCAAF,308,Missouri S&T,,,,,,,https://media.api-sports.io/american-football/teams/308.png
+NCAAF,309,Michigan Tech,,,,,,,https://media.api-sports.io/american-football/teams/309.png
+NCAAF,310,Winston-Salem,,,,,,,https://media.api-sports.io/american-football/teams/310.png
+NCAAF,312,Louisiana Christian University,,,,,,,https://media.api-sports.io/american-football/teams/312.png
+NCAAF,313,Albany State,,,,,,,https://media.api-sports.io/american-football/teams/313.png
+NCAAF,314,UVA Wise,,,,,,,https://media.api-sports.io/american-football/teams/314.png
+NCAAF,316,Lindenwood,,,,,,,https://media.api-sports.io/american-football/teams/316.png
+NCAAF,319,Chadron State,,,,,,,https://media.api-sports.io/american-football/teams/319.png
+NCAAF,320,Tuskegee,,,,,,,https://media.api-sports.io/american-football/teams/320.png
+NCAAF,321,Harvard,,,,,,,https://media.api-sports.io/american-football/teams/321.png
+NCAAF,323,Princeton,,,,,,,https://media.api-sports.io/american-football/teams/323.png
+NCAAF,324,Pennsylvania,,,,,,,https://media.api-sports.io/american-football/teams/324.png
+NCAAF,325,Kentucky State,,,,,,,https://media.api-sports.io/american-football/teams/325.png
+NCAAF,326,Cornell,,,,,,,https://media.api-sports.io/american-football/teams/326.png
+NCAAF,327,Dartmouth,,,,,,,https://media.api-sports.io/american-football/teams/327.png
+NCAAF,328,Yale,,,,,,,https://media.api-sports.io/american-football/teams/328.png
+NCAAF,329,Morehouse College,,,,,,,https://media.api-sports.io/american-football/teams/329.png
+NCAAF,330,Columbia,,,,,,,https://media.api-sports.io/american-football/teams/330.png
+NCAAF,331,Kentucky Christian,,,,,,,https://media.api-sports.io/american-football/teams/331.png
+NCAAF,332,Eastern New Mexico,,,,,,,https://media.api-sports.io/american-football/teams/332.png
+NCAAF,334,Delta State,,,,,,,https://media.api-sports.io/american-football/teams/334.png
+NCAAF,335,Keiser University,,,,,,,https://media.api-sports.io/american-football/teams/335.png
+NCAAF,336,Warner,,,,,,,https://media.api-sports.io/american-football/teams/336.png
+NCAAF,337,Western New Mexico,,,,,,,https://media.api-sports.io/american-football/teams/337.png
+NCAAF,339,Southern Connecticut State,,,,,,,https://media.api-sports.io/american-football/teams/339.png
+NCAAF,340,Edward Waters,,,,,,,https://media.api-sports.io/american-football/teams/340.png
+NCAAF,342,Southwest Baptist,,,,,,,https://media.api-sports.io/american-football/teams/342.png
+NCAAF,343,William Jewell College,,,,,,,https://media.api-sports.io/american-football/teams/343.png
+NCAAF,344,McKendree,,,,,,,https://media.api-sports.io/american-football/teams/344.png
+NCAAF,345,TBA,,,,,,,https://media.api-sports.io/american-football/teams/345.png
+NCAAF,346,Virginia Union,,,,,,,https://media.api-sports.io/american-football/teams/346.png
+NCAAF,347,Benedict College,,,,,,,https://media.api-sports.io/american-football/teams/347.png
+NCAAF,348,Savannah State,,,,,,,https://media.api-sports.io/american-football/teams/348.png
+NCAAF,349,Bentley,,,,,,,https://media.api-sports.io/american-football/teams/349.png
+NCAAF,350,Westfield State,,,,,,,https://media.api-sports.io/american-football/teams/350.png
+NCAAF,351,Western Connecticut State,,,,,,,https://media.api-sports.io/american-football/teams/351.png
+NCAAF,353,St. Lawrence,,,,,,,https://media.api-sports.io/american-football/teams/353.png
+NCAAF,354,SUNY Morrisville,,,,,,,https://media.api-sports.io/american-football/teams/354.png
+NCAAF,355,Elizabeth City State,,,,,,,https://media.api-sports.io/american-football/teams/355.png
+NCAAF,356,Dean College,,,,,,,https://media.api-sports.io/american-football/teams/356.png
+NCAAF,357,Curry College,,,,,,,https://media.api-sports.io/american-football/teams/357.png
+NCAAF,358,Husson,,,,,,,https://media.api-sports.io/american-football/teams/358.png
+NCAAF,359,Alfred State College,,,,,,,https://media.api-sports.io/american-football/teams/359.png
+NCAAF,360,University of New England,,,,,,,https://media.api-sports.io/american-football/teams/360.png
+NCAAF,361,Gallaudet,,,,,,,https://media.api-sports.io/american-football/teams/361.png
+NCAAF,362,Rose-Hulman,,,,,,,https://media.api-sports.io/american-football/teams/362.png
+NCAAF,363,Albion,,,,,,,https://media.api-sports.io/american-football/teams/363.png
+NCAAF,364,Walsh,,,,,,,https://media.api-sports.io/american-football/teams/364.png
+NCAAF,365,Quincy,,,,,,,https://media.api-sports.io/american-football/teams/365.png
+NCAAF,366,Findlay,,,,,,,https://media.api-sports.io/american-football/teams/366.png
+NCAAF,367,Davenport,,,,,,,https://media.api-sports.io/american-football/teams/367.png
+NCAAF,368,Northern Michigan,,,,,,,https://media.api-sports.io/american-football/teams/368.png
+NCAAF,369,Shorter,,,,,,,https://media.api-sports.io/american-football/teams/369.png
+NCAAF,371,Frostburg State,,,,,,,https://media.api-sports.io/american-football/teams/371.png
+NCAAF,373,West Liberty,,,,,,,https://media.api-sports.io/american-football/teams/373.png
+NCAAF,374,Hiram College,,,,,,,https://media.api-sports.io/american-football/teams/374.png
+NCAAF,375,DePauw,,,,,,,https://media.api-sports.io/american-football/teams/375.png
+NCAAF,378,Edinboro,,,,,,,https://media.api-sports.io/american-football/teams/378.png
+NCAAF,379,Shepherd,,,,,,,https://media.api-sports.io/american-football/teams/379.png
+NCAAF,380,California (PA),,,,,,,https://media.api-sports.io/american-football/teams/380.png
+NCAAF,381,Mercyhurst,,,,,,,https://media.api-sports.io/american-football/teams/381.png
+NCAAF,382,Kutztown,,,,,,,https://media.api-sports.io/american-football/teams/382.png
+NCAAF,384,Slippery Rock,,,,,,,https://media.api-sports.io/american-football/teams/384.png
+NCAAF,385,Seton Hill,,,,,,,https://media.api-sports.io/american-football/teams/385.png
+NCAAF,386,East Stroudsburg,,,,,,,https://media.api-sports.io/american-football/teams/386.png
+NCAAF,387,Gannon,,,,,,,https://media.api-sports.io/american-football/teams/387.png
+NCAAF,388,West Chester,,,,,,,https://media.api-sports.io/american-football/teams/388.png
+NCAAF,390,Central State (OH),,,,,,,https://media.api-sports.io/american-football/teams/390.png
+NCAAF,392,Brockport,,,,,,,https://media.api-sports.io/american-football/teams/392.png
+NCAAF,394,Coast Guard,,,,,,,https://media.api-sports.io/american-football/teams/394.png
+NCAAF,395,FDU-Florham,,,,,,,https://media.api-sports.io/american-football/teams/395.png
+NCAAF,396,Lebanon Valley,,,,,,,https://media.api-sports.io/american-football/teams/396.png
+NCAAF,397,Fitchburg State,,,,,,,https://media.api-sports.io/american-football/teams/397.png
+NCAAF,398,Worcester State College,,,,,,,https://media.api-sports.io/american-football/teams/398.png
+NCAAF,399,Hilbert College,,,,,,,https://media.api-sports.io/american-football/teams/399.png
+NCAAF,400,Willamette,,,,,,,https://media.api-sports.io/american-football/teams/400.png
+NCAAF,404,Albright,,,,,,,https://media.api-sports.io/american-football/teams/404.png
+NCAAF,405,Misericordia,,,,,,,https://media.api-sports.io/american-football/teams/405.png
+NCAAF,406,Wilkes University,,,,,,,https://media.api-sports.io/american-football/teams/406.png
+NCAAF,410,Bowdoin,,,,,,,https://media.api-sports.io/american-football/teams/410.png
+NCAAF,411,Hamilton,,,,,,,https://media.api-sports.io/american-football/teams/411.png
+NCAAF,412,Salisbury University,,,,,,,https://media.api-sports.io/american-football/teams/412.png
+NCAAF,414,Endicott College,,,,,,,https://media.api-sports.io/american-football/teams/414.png
+NCAAF,415,The College of New Jersey,,,,,,,https://media.api-sports.io/american-football/teams/415.png
+NCAAF,416,Fayetteville State,,,,,,,https://media.api-sports.io/american-football/teams/416.png
+NCAAF,417,Chowan,,,,,,,https://media.api-sports.io/american-football/teams/417.png
+NCAAF,418,Johnson C Smith,,,,,,,https://media.api-sports.io/american-football/teams/418.png
+NCAAF,420,Dubuque,,,,,,,https://media.api-sports.io/american-football/teams/420.png
+NCAAF,421,Wartburg College,,,,,,,https://media.api-sports.io/american-football/teams/421.png
+NCAAF,422,Luther,,,,,,,https://media.api-sports.io/american-football/teams/422.png
+NCAAF,424,Juniata,,,,,,,https://media.api-sports.io/american-football/teams/424.png
+NCAAF,425,Ithaca,,,,,,,https://media.api-sports.io/american-football/teams/425.png
+NCAAF,426,Alfred,,,,,,,https://media.api-sports.io/american-football/teams/426.png
+NCAAF,427,Hanover,,,,,,,https://media.api-sports.io/american-football/teams/427.png
+NCAAF,428,Olivet College,,,,,,,https://media.api-sports.io/american-football/teams/428.png
+NCAAF,429,Mass Maritime,,,,,,,https://media.api-sports.io/american-football/teams/429.png
+NCAAF,430,Anna Maria College,,,,,,,https://media.api-sports.io/american-football/teams/430.png
+NCAAF,431,Chicago,,,,,,,https://media.api-sports.io/american-football/teams/431.png
+NCAAF,432,Beloit College,,,,,,,https://media.api-sports.io/american-football/teams/432.png
+NCAAF,434,Grinnell,,,,,,,https://media.api-sports.io/american-football/teams/434.png
+NCAAF,435,Cornell College (IA),,,,,,,https://media.api-sports.io/american-football/teams/435.png
+NCAAF,436,Ripon,,,,,,,https://media.api-sports.io/american-football/teams/436.png
+NCAAF,437,Hillsdale,,,,,,,https://media.api-sports.io/american-football/teams/437.png
+NCAAF,438,Truman State,,,,,,,https://media.api-sports.io/american-football/teams/438.png
+NCAAF,443,Glenville State,,,,,,,https://media.api-sports.io/american-football/teams/443.png
+NCAAF,446,Augustana University (SD),,,,,,,https://media.api-sports.io/american-football/teams/446.png
+NCAAF,448,Moravian,,,,,,,https://media.api-sports.io/american-football/teams/448.png
+NCAAF,449,Kenyon,,,,,,,https://media.api-sports.io/american-football/teams/449.png
+NCAAF,451,Denison,,,,,,,https://media.api-sports.io/american-football/teams/451.png
+NCAAF,452,Oberlin,,,,,,,https://media.api-sports.io/american-football/teams/452.png
+NCAAF,454,Newberry,,,,,,,https://media.api-sports.io/american-football/teams/454.png
+NCAAF,455,LaGrange College,,,,,,,https://media.api-sports.io/american-football/teams/455.png
+NCAAF,456,Ferrum,,,,,,,https://media.api-sports.io/american-football/teams/456.png
+NCAAF,457,Hampden Sydney,,,,,,,https://media.api-sports.io/american-football/teams/457.png
+NCAAF,458,Greensboro College,,,,,,,https://media.api-sports.io/american-football/teams/458.png
+NCAAF,461,Methodist,,,,,,,https://media.api-sports.io/american-football/teams/461.png
+NCAAF,463,Carnegie Mellon,,,,,,,https://media.api-sports.io/american-football/teams/463.png
+NCAAF,464,Grove City College,,,,,,,https://media.api-sports.io/american-football/teams/464.png
+NCAAF,466,Geneva College,,,,,,,https://media.api-sports.io/american-football/teams/466.png
+NCAAF,467,Berry College,,,,,,,https://media.api-sports.io/american-football/teams/467.png
+NCAAF,468,Wisconsin-Whitewater,,,,,,,https://media.api-sports.io/american-football/teams/468.png
+NCAAF,469,Shippensburg,,,,,,,https://media.api-sports.io/american-football/teams/469.png
+NCAAF,471,Carson-Newman,,,,,,,https://media.api-sports.io/american-football/teams/471.png
+NCAAF,472,Western New England,,,,,,,https://media.api-sports.io/american-football/teams/472.png
+NCAAF,473,Utica College,,,,,,,https://media.api-sports.io/american-football/teams/473.png
+NCAAF,474,Catholic University,,,,,,,https://media.api-sports.io/american-football/teams/474.png
+NCAAF,475,Kean University,,,,,,,https://media.api-sports.io/american-football/teams/475.png
+NCAAF,476,Merchant Marine,,,,,,,https://media.api-sports.io/american-football/teams/476.png
+NCAAF,477,SUNY Maritime,,,,,,,https://media.api-sports.io/american-football/teams/477.png
+NCAAF,478,Guilford,,,,,,,https://media.api-sports.io/american-football/teams/478.png
+NCAAF,480,McDaniel College,,,,,,,https://media.api-sports.io/american-football/teams/480.png
+NCAAF,481,Franklin & Marshall,,,,,,,https://media.api-sports.io/american-football/teams/481.png
+NCAAF,482,New Haven,,,,,,,https://media.api-sports.io/american-football/teams/482.png
+NCAAF,483,American International,,,,,,,https://media.api-sports.io/american-football/teams/483.png
+NCAAF,486,West Virginia State,,,,,,,https://media.api-sports.io/american-football/teams/486.png
+NCAAF,487,Fairmont State,,,,,,,https://media.api-sports.io/american-football/teams/487.png
+NCAAF,489,Montclair State,,,,,,,https://media.api-sports.io/american-football/teams/489.png
+NCAAF,491,Southern Virginia,,,,,,,https://media.api-sports.io/american-football/teams/491.png
+NCAAF,495,Bates College,,,,,,,https://media.api-sports.io/american-football/teams/495.png
+NCAAF,496,William Paterson,,,,,,,https://media.api-sports.io/american-football/teams/496.png
+NCAAF,497,Keystone,,,,,,,https://media.api-sports.io/american-football/teams/497.png
+NCAAF,499,Muhlenberg,,,,,,,https://media.api-sports.io/american-football/teams/499.png
+NCAAF,502,Catawba,,,,,,,https://media.api-sports.io/american-football/teams/502.png
+NCAAF,503,King's College (PA),,,,,,,https://media.api-sports.io/american-football/teams/503.png
+NCAAF,504,Delaware Valley,,,,,,,https://media.api-sports.io/american-football/teams/504.png
+NCAAF,505,Ohio Dominican,,,,,,,https://media.api-sports.io/american-football/teams/505.png
+NCAAF,506,Colby College,,,,,,,https://media.api-sports.io/american-football/teams/506.png
+NCAAF,508,Gettysburg,,,,,,,https://media.api-sports.io/american-football/teams/508.png
+NCAAF,510,Franklin,,,,,,,https://media.api-sports.io/american-football/teams/510.png
+NCAAF,511,Trine University,,,,,,,https://media.api-sports.io/american-football/teams/511.png
+NCAAF,512,Mount St. Joseph,,,,,,,https://media.api-sports.io/american-football/teams/512.png
+NCAAF,513,Hope,,,,,,,https://media.api-sports.io/american-football/teams/513.png
+NCAAF,514,UMASS Dartmouth,,,,,,,https://media.api-sports.io/american-football/teams/514.png
+NCAAF,515,Framingham State,,,,,,,https://media.api-sports.io/american-football/teams/515.png
+NCAAF,517,Kalamazoo,,,,,,,https://media.api-sports.io/american-football/teams/517.png
+NCAAF,518,John Carroll,,,,,,,https://media.api-sports.io/american-football/teams/518.png
+NCAAF,519,Baldwin Wallace,,,,,,,https://media.api-sports.io/american-football/teams/519.png
+NCAAF,520,Mount Union,,,,,,,https://media.api-sports.io/american-football/teams/520.png
+NCAAF,521,Marietta,,,,,,,https://media.api-sports.io/american-football/teams/521.png
+NCAAF,528,Elmhurst,,,,,,,https://media.api-sports.io/american-football/teams/528.png
+NCAAF,531,Augsburg,,,,,,,https://media.api-sports.io/american-football/teams/531.png
+NCAAF,532,Concordia-Chicago,,,,,,,https://media.api-sports.io/american-football/teams/532.png
+NCAAF,533,Aurora,,,,,,,https://media.api-sports.io/american-football/teams/533.png
+NCAAF,534,Washburn,,,,,,,https://media.api-sports.io/american-football/teams/534.png
+NCAAF,535,Nebraska-Kearney,,,,,,,https://media.api-sports.io/american-football/teams/535.png
+NCAAF,536,West Virginia Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/536.png
+NCAAF,537,Concord,,,,,,,https://media.api-sports.io/american-football/teams/537.png
+NCAAF,538,Fort Valley State,,,,,,,https://media.api-sports.io/american-football/teams/538.png
+NCAAF,539,Allen,,,,,,,https://media.api-sports.io/american-football/teams/539.png
+NCAAF,540,Emporia State,,,,,,,https://media.api-sports.io/american-football/teams/540.png
+NCAAF,541,Missouri Western,,,,,,,https://media.api-sports.io/american-football/teams/541.png
+NCAAF,542,Central College,,,,,,,https://media.api-sports.io/american-football/teams/542.png
+NCAAF,543,Loras College,,,,,,,https://media.api-sports.io/american-football/teams/543.png
+NCAAF,544,Wisconsin-Platteville,,,,,,,https://media.api-sports.io/american-football/teams/544.png
+NCAAF,545,Hardin-Simmons,,,,,,,https://media.api-sports.io/american-football/teams/545.png
+NCAAF,546,Benedictine University (IL),,,,,,,https://media.api-sports.io/american-football/teams/546.png
+NCAAF,548,Wooster,,,,,,,https://media.api-sports.io/american-football/teams/548.png
+NCAAF,549,Wabash College,,,,,,,https://media.api-sports.io/american-football/teams/549.png
+NCAAF,551,Otterbein,,,,,,,https://media.api-sports.io/american-football/teams/551.png
+NCAAF,552,Sewanee Univ. of the South,,,,,,,https://media.api-sports.io/american-football/teams/552.png
+NCAAF,555,St. Scholastica,,,,,,,https://media.api-sports.io/american-football/teams/555.png
+NCAAF,556,Gustavus Adolphus,,,,,,,https://media.api-sports.io/american-football/teams/556.png
+NCAAF,557,Wisconsin-Stout,,,,,,,https://media.api-sports.io/american-football/teams/557.png
+NCAAF,558,Minot State,,,,,,,https://media.api-sports.io/american-football/teams/558.png
+NCAAF,559,Wayne State (NE),,,,,,,https://media.api-sports.io/american-football/teams/559.png
+NCAAF,561,Clarion,,,,,,,https://media.api-sports.io/american-football/teams/561.png
+NCAAF,562,McMurry,,,,,,,https://media.api-sports.io/american-football/teams/562.png
+NCAAF,563,East Texas Baptist,,,,,,,https://media.api-sports.io/american-football/teams/563.png
+NCAAF,564,New Mexico Highlands,,,,,,,https://media.api-sports.io/american-football/teams/564.png
+NCAAF,565,Fort Lewis,,,,,,,https://media.api-sports.io/american-football/teams/565.png
+NCAAF,567,Millikin,,,,,,,https://media.api-sports.io/american-football/teams/567.png
+NCAAF,568,Eureka College,,,,,,,https://media.api-sports.io/american-football/teams/568.png
+NCAAF,570,Monmouth (IL),,,,,,,https://media.api-sports.io/american-football/teams/570.png
+NCAAF,571,Illinois College,,,,,,,https://media.api-sports.io/american-football/teams/571.png
+NCAAF,572,Norwich,,,,,,,https://media.api-sports.io/american-football/teams/572.png
+NCAAF,573,Castleton,,,,,,,https://media.api-sports.io/american-football/teams/573.png
+NCAAF,574,Greenville,,,,,,,https://media.api-sports.io/american-football/teams/574.png
+NCAAF,575,Manchester,,,,,,,https://media.api-sports.io/american-football/teams/575.png
+NCAAF,576,California Lutheran,,,,,,,https://media.api-sports.io/american-football/teams/576.png
+NCAAF,577,Puget Sound,,,,,,,https://media.api-sports.io/american-football/teams/577.png
+NCAAF,579,Lewis & Clark,,,,,,,https://media.api-sports.io/american-football/teams/579.png
+NCAAF,580,Amherst College,,,,,,,https://media.api-sports.io/american-football/teams/580.png
+NCAAF,581,Middlebury,,,,,,,https://media.api-sports.io/american-football/teams/581.png
+NCAAF,584,Millsaps,,,,,,,https://media.api-sports.io/american-football/teams/584.png
+NCAAF,585,Wisconsin-Oshkosh,,,,,,,https://media.api-sports.io/american-football/teams/585.png
+NCAAF,586,Northwest Missouri State,,,,,,,https://media.api-sports.io/american-football/teams/586.png
+NCAAF,587,Central Missouri,,,,,,,https://media.api-sports.io/american-football/teams/587.png
+NCAAF,588,Lake Forest,,,,,,,https://media.api-sports.io/american-football/teams/588.png
+NCAAF,589,Knox College,,,,,,,https://media.api-sports.io/american-football/teams/589.png
+NCAAF,590,Southern Nazarene,,,,,,,https://media.api-sports.io/american-football/teams/590.png
+NCAAF,592,West Alabama,,,,,,,https://media.api-sports.io/american-football/teams/592.png
+NCAAF,593,Bemidji State,,,,,,,https://media.api-sports.io/american-football/teams/593.png
+NCAAF,594,Winona State,,,,,,,https://media.api-sports.io/american-football/teams/594.png
+NCAAF,595,University of Mary,,,,,,,https://media.api-sports.io/american-football/teams/595.png
+NCAAF,596,Southwest Minnesota State,,,,,,,https://media.api-sports.io/american-football/teams/596.png
+NCAAF,597,Adams State,,,,,,,https://media.api-sports.io/american-football/teams/597.png
+NCAAF,598,Colorado School of Mines,,,,,,,https://media.api-sports.io/american-football/teams/598.png
+NCAAF,599,Colorado Mesa,,,,,,,https://media.api-sports.io/american-football/teams/599.png
+NCAAF,600,South Dakota Mines,,,,,,,https://media.api-sports.io/american-football/teams/600.png
+NCAAF,601,Carleton College,,,,,,,https://media.api-sports.io/american-football/teams/601.png
+NCAAF,603,Clark Atlanta,,,,,,,https://media.api-sports.io/american-football/teams/603.png
+NCAAF,604,Shaw,,,,,,,https://media.api-sports.io/american-football/teams/604.png
+NCAAF,605,Bowie State,,,,,,,https://media.api-sports.io/american-football/teams/605.png
+NCAAF,606,Hendrix College,,,,,,,https://media.api-sports.io/american-football/teams/606.png
+NCAAF,607,Howard Payne,,,,,,,https://media.api-sports.io/american-football/teams/607.png
+NCAAF,609,Central Washington,,,,,,,https://media.api-sports.io/american-football/teams/609.png
+NCAAF,610,Erskine,,,,,,,https://media.api-sports.io/american-football/teams/610.png
+NCAAF,611,Lenoir-Rhyne,,,,,,,https://media.api-sports.io/american-football/teams/611.png
+NCAAF,612,Linfield,,,,,,,https://media.api-sports.io/american-football/teams/612.png
+NCAAF,613,Redlands,,,,,,,https://media.api-sports.io/american-football/teams/613.png
+NCAAF,614,Whitworth,,,,,,,https://media.api-sports.io/american-football/teams/614.png
+NCAAF,615,Claremont Mudd Scripps College,,,,,,,https://media.api-sports.io/american-football/teams/615.png
+NCAAF,616,Colorado State-Pueblo,,,,,,,https://media.api-sports.io/american-football/teams/616.png
+NCAAF,617,Western Colorado,,,,,,,https://media.api-sports.io/american-football/teams/617.png
+NCAAF,618,Rensselaer,,,,,,,https://media.api-sports.io/american-football/teams/618.png
+NCAAF,620,Virginia State,,,,,,,https://media.api-sports.io/american-football/teams/620.png
+NCAAF,622,Livingstone,,,,,,,https://media.api-sports.io/american-football/teams/622.png
+NCAAF,623,Buena Vista,,,,,,,https://media.api-sports.io/american-football/teams/623.png
+NCAAF,624,Coe College,,,,,,,https://media.api-sports.io/american-football/teams/624.png
+NCAAF,625,Bluffton,,,,,,,https://media.api-sports.io/american-football/teams/625.png
+NCAAF,626,Adrian,,,,,,,https://media.api-sports.io/american-football/teams/626.png
+NCAAF,627,Anderson (IN),,,,,,,https://media.api-sports.io/american-football/teams/627.png
+NCAAF,628,Alma College,,,,,,,https://media.api-sports.io/american-football/teams/628.png
+NCAAF,630,Wayne State (MI),,,,,,,https://media.api-sports.io/american-football/teams/630.png
+NCAAF,632,Missouri Southern State,,,,,,,https://media.api-sports.io/american-football/teams/632.png
+NCAAF,633,Central Oklahoma,,,,,,,https://media.api-sports.io/american-football/teams/633.png
+NCAAF,634,Franklin Pierce,,,,,,,https://media.api-sports.io/american-football/teams/634.png
+NCAAF,635,St. Anselm,,,,,,,https://media.api-sports.io/american-football/teams/635.png
+NCAAF,636,Averett,,,,,,,https://media.api-sports.io/american-football/teams/636.png
+NCAAF,637,Brevard College,,,,,,,https://media.api-sports.io/american-football/teams/637.png
+NCAAF,638,Tusculum,,,,,,,https://media.api-sports.io/american-football/teams/638.png
+NCAAF,639,Wingate,,,,,,,https://media.api-sports.io/american-football/teams/639.png
+NCAAF,640,Arkansas Tech,,,,,,,https://media.api-sports.io/american-football/teams/640.png
+NCAAF,641,Ouachita Baptist,,,,,,,https://media.api-sports.io/american-football/teams/641.png
+NCAAF,642,Henderson State,,,,,,,https://media.api-sports.io/american-football/teams/642.png
+NCAAF,643,Arkansas-Monticello,,,,,,,https://media.api-sports.io/american-football/teams/643.png
+NCAAF,644,Mary Hardin-Baylor,,,,,,,https://media.api-sports.io/american-football/teams/644.png
+NCAAF,645,Southwestern University,,,,,,,https://media.api-sports.io/american-football/teams/645.png
+NCAAF,647,Texas Lutheran,,,,,,,https://media.api-sports.io/american-football/teams/647.png
+NCAAF,648,Carroll (WI),,,,,,,https://media.api-sports.io/american-football/teams/648.png
+NCAAF,649,North Park,,,,,,,https://media.api-sports.io/american-football/teams/649.png
+NCAAF,651,Illinois Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/651.png
+NCAAF,652,Harding University,,,,,,,https://media.api-sports.io/american-football/teams/652.png
+NCAAF,653,Southern Arkansas,,,,,,,https://media.api-sports.io/american-football/teams/653.png
+NCAAF,654,Northwestern Oklahoma State,,,,,,,https://media.api-sports.io/american-football/teams/654.png
+NCAAF,655,Oklahoma Baptist,,,,,,,https://media.api-sports.io/american-football/teams/655.png
+NCAAF,656,Southwestern Oklahoma,,,,,,,https://media.api-sports.io/american-football/teams/656.png
+NCAAF,657,Southeastern Oklahoma,,,,,,,https://media.api-sports.io/american-football/teams/657.png
+NCAAF,659,Indianapolis,,,,,,,https://media.api-sports.io/american-football/teams/659.png
+NCAAF,660,Grand Valley State,,,,,,,https://media.api-sports.io/american-football/teams/660.png
+NCAAF,661,Lincoln (MO),,,,,,,https://media.api-sports.io/american-football/teams/661.png
+NCAAF,662,Fort Hays State,,,,,,,https://media.api-sports.io/american-football/teams/662.png
+NCAAF,663,Valdosta State,,,,,,,https://media.api-sports.io/american-football/teams/663.png
+NCAAF,664,Minnesota Duluth,,,,,,,https://media.api-sports.io/american-football/teams/664.png
+NCAAF,665,Upper Iowa,,,,,,,https://media.api-sports.io/american-football/teams/665.png
+NCAAF,666,Northern State,,,,,,,https://media.api-sports.io/american-football/teams/666.png
+NCAAF,670,Wisconsin Lutheran,,,,,,,https://media.api-sports.io/american-football/teams/670.png
+NCAAF,671,Lakeland University,,,,,,,https://media.api-sports.io/american-football/teams/671.png
+NCAAF,672,Heidelberg,,,,,,,https://media.api-sports.io/american-football/teams/672.png
+NCAAF,673,Ohio Northern,,,,,,,https://media.api-sports.io/american-football/teams/673.png
+NCAAF,675,Allegheny,,,,,,,https://media.api-sports.io/american-football/teams/675.png
+NCAAF,676,Case Western Reserve,,,,,,,https://media.api-sports.io/american-football/teams/676.png
+NCAAF,677,Washington & Jefferson,,,,,,,https://media.api-sports.io/american-football/teams/677.png
+NCAAF,678,Wisconsin-River Falls,,,,,,,https://media.api-sports.io/american-football/teams/678.png
+NCAAF,680,Muskingum,,,,,,,https://media.api-sports.io/american-football/teams/680.png
+NCAAF,682,Concordia-St. Paul,,,,,,,https://media.api-sports.io/american-football/teams/682.png
+NCAAF,683,Sioux Falls,,,,,,,https://media.api-sports.io/american-football/teams/683.png
+NCAAF,684,Kentucky Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/684.png
+NCAAF,685,Midwestern State,,,,,,,https://media.api-sports.io/american-football/teams/685.png
+NCAAF,687,Angelo State,,,,,,,https://media.api-sports.io/american-football/teams/687.png
+NCAAF,688,Pittsburg State,,,,,,,https://media.api-sports.io/american-football/teams/688.png
+NCAAF,689,Northeastern State,,,,,,,https://media.api-sports.io/american-football/teams/689.png
+NCAAF,690,Black Hills State,,,,,,,https://media.api-sports.io/american-football/teams/690.png
+NCAAF,691,West Texas A&M,,,,,,,https://media.api-sports.io/american-football/teams/691.png
+NCAAF,692,Texas A&M-Kingsville,,,,,,,https://media.api-sports.io/american-football/teams/692.png
+NCAAF,694,Chapman University,,,,,,,https://media.api-sports.io/american-football/teams/694.png
+NCAAF,695,Pacific (OR),,,,,,,https://media.api-sports.io/american-football/teams/695.png
+NCAAF,697,Pacific Lutheran,,,,,,,https://media.api-sports.io/american-football/teams/697.png
+NCAAF,698,Lycoming,,,,,,,https://media.api-sports.io/american-football/teams/698.png
+NCAAF,699,MIT,,,,,,,https://media.api-sports.io/american-football/teams/699.png
+NCAAF,700,Ohio Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/700.png
+NCAAF,701,Rowan,,,,,,,https://media.api-sports.io/american-football/teams/701.png
+NCAAF,703,Wisconsin-Eau Claire,,,,,,,https://media.api-sports.io/american-football/teams/703.png
+NCAAF,704,Concordia-Moorhead,,,,,,,https://media.api-sports.io/american-football/teams/704.png
+NCAAF,705,Hamline,,,,,,,https://media.api-sports.io/american-football/teams/705.png
+NCAAF,706,Bethel (MN),,,,,,,https://media.api-sports.io/american-football/teams/706.png
+NCAAF,709,Ashland,,,,,,,https://media.api-sports.io/american-football/teams/709.png
+NCAAF,710,Christopher Newport,,,,,,,https://media.api-sports.io/american-football/teams/710.png
+NCAAF,711,Rhodes College,,,,,,,https://media.api-sports.io/american-football/teams/711.png
+NCAAF,712,Macalester,,,,,,,https://media.api-sports.io/american-football/teams/712.png
+NCAAF,714,Centre College,,,,,,,https://media.api-sports.io/american-football/teams/714.png
+NCAAF,715,Hartwick,,,,,,,https://media.api-sports.io/american-football/teams/715.png
+NCAAF,716,West Georgia,,,,,,,https://media.api-sports.io/american-football/teams/716.png
+NCAAF,717,Ferris State,,,,,,,https://media.api-sports.io/american-football/teams/717.png
+NCAAF,719,Bethany (WV),,,,,,,https://media.api-sports.io/american-football/teams/719.png
+NCAAF,720,West Florida,,,,,,,https://media.api-sports.io/american-football/teams/720.png
+NCAAF,722,Point University,,,,,,,https://media.api-sports.io/american-football/teams/722.png
+NCAAF,723,Apprentice School,,,,,,,https://media.api-sports.io/american-football/teams/723.png
+NCAAF,727,Arkansas Baptist,,,,,,,https://media.api-sports.io/american-football/teams/727.png
+NCAAF,729,Webber International,,,,,,,https://media.api-sports.io/american-football/teams/729.png
+NCAAF,730,UAlbany,,,,,,,https://media.api-sports.io/american-football/teams/730.png
+NCAAF,731,Tarleton State,,,,,,,https://media.api-sports.io/american-football/teams/731.png
+NCAAF,732,Lincoln (CA),,,,,,,https://media.api-sports.io/american-football/teams/732.png
+NCAAF,734,Northwood (MI),,,,,,,https://media.api-sports.io/american-football/teams/734.png
+NCAAF,735,Saginaw Valley State,,,,,,,https://media.api-sports.io/american-football/teams/735.png
+NCAAF,736,UNC Pembroke,,,,,,,https://media.api-sports.io/american-football/teams/736.png
+NCAAF,737,Indiana-Pennsylvania,,,,,,,https://media.api-sports.io/american-football/teams/737.png
+NCAAF,738,Millersville,,,,,,,https://media.api-sports.io/american-football/teams/738.png
+NCAAF,739,Minnesota State Moorhead,,,,,,,https://media.api-sports.io/american-football/teams/739.png
+NCAAF,740,Rockford,,,,,,,https://media.api-sports.io/american-football/teams/740.png
+NCAAF,742,Salve Regina,,,,,,,https://media.api-sports.io/american-football/teams/742.png
+NCAAF,743,WPI,,,,,,,https://media.api-sports.io/american-football/teams/743.png
+NCAAF,744,Ursinus,,,,,,,https://media.api-sports.io/american-football/teams/744.png
+NCAAF,745,Alvernia,,,,,,,https://media.api-sports.io/american-football/teams/745.png
+NCAAF,746,Valley City State,,,,,,,https://media.api-sports.io/american-football/teams/746.png
+NCAAF,747,Lyon College,,,,,,,https://media.api-sports.io/american-football/teams/747.png
+NCAAF,749,Lake Erie,,,,,,,https://media.api-sports.io/american-football/teams/749.png
+NCAAF,750,Tiffin,,,,,,,https://media.api-sports.io/american-football/teams/750.png
+NCAAF,751,Randolph-Macon,,,,,,,https://media.api-sports.io/american-football/teams/751.png
+NCAAF,752,University of Rochester (NY),,,,,,,https://media.api-sports.io/american-football/teams/752.png
+NCAAF,754,Union (NY),,,,,,,https://media.api-sports.io/american-football/teams/754.png
+NCAAF,756,Eastern University,,,,,,,https://media.api-sports.io/american-football/teams/756.png
+NCAAF,757,Springfield,,,,,,,https://media.api-sports.io/american-football/teams/757.png
+NCAAF,758,St. John Fisher University,,,,,,,https://media.api-sports.io/american-football/teams/758.png
+NCAAF,759,Emory & Henry College,,,,,,,https://media.api-sports.io/american-football/teams/759.png
+NCAAF,760,Dickinson (PA),,,,,,,https://media.api-sports.io/american-football/teams/760.png
+NCAAF,761,Shenandoah,,,,,,,https://media.api-sports.io/american-football/teams/761.png
+NCAAF,762,Plymouth State,,,,,,,https://media.api-sports.io/american-football/teams/762.png
+NCAAF,763,Maryville College (TN),,,,,,,https://media.api-sports.io/american-football/teams/763.png
+NCAAF,764,Westminster (PA),,,,,,,https://media.api-sports.io/american-football/teams/764.png
+NCAAF,765,Wittenberg,,,,,,,https://media.api-sports.io/american-football/teams/765.png
+NCAAF,766,Nebraska Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/766.png
+NCAAF,767,Carthage,,,,,,,https://media.api-sports.io/american-football/teams/767.png
+NCAAF,768,Martin Luther,,,,,,,https://media.api-sports.io/american-football/teams/768.png
+NCAAF,769,Northwestern (MN),,,,,,,https://media.api-sports.io/american-football/teams/769.png
+NCAAF,770,Crown College,,,,,,,https://media.api-sports.io/american-football/teams/770.png
+NCAAF,771,St. Norbert,,,,,,,https://media.api-sports.io/american-football/teams/771.png
+NCAAF,773,Westminster (MO),,,,,,,https://media.api-sports.io/american-football/teams/773.png
+NCAAF,774,Roosevelt,,,,,,,https://media.api-sports.io/american-football/teams/774.png
+NCAAF,775,Bluefield State University,,,,,,,https://media.api-sports.io/american-football/teams/775.png
+NCAAF,776,Huntingdon College (AL),,,,,,,https://media.api-sports.io/american-football/teams/776.png
+NCAAF,778,Simpson College (IA),,,,,,,https://media.api-sports.io/american-football/teams/778.png
+NCAAF,780,George Fox,,,,,,,https://media.api-sports.io/american-football/teams/780.png
+NCAAF,782,Minnesota Morris,,,,,,,https://media.api-sports.io/american-football/teams/782.png
+NCAAF,783,Oklahoma Panhandle State,,,,,,,https://media.api-sports.io/american-football/teams/783.png
+NCAAF,784,UT Permian Basin,,,,,,,https://media.api-sports.io/american-football/teams/784.png
+NCAAF,785,Wheeling,,,,,,,https://media.api-sports.io/american-football/teams/785.png
+NCAAF,786,Mayville State,,,,,,,https://media.api-sports.io/american-football/teams/786.png
+NCAAF,787,Saint Vincent,,,,,,,https://media.api-sports.io/american-football/teams/787.png
+NCAAF,788,Thiel,,,,,,,https://media.api-sports.io/american-football/teams/788.png
+NCAAF,789,Sul Ross State,,,,,,,https://media.api-sports.io/american-football/teams/789.png
+NCAAF,790,Stevenson,,,,,,,https://media.api-sports.io/american-football/teams/790.png
+NCAAF,791,Waynesburg,,,,,,,https://media.api-sports.io/american-football/teams/791.png
+NCAAF,792,Wilmington (OH),,,,,,,https://media.api-sports.io/american-football/teams/792.png
+NCAAF,793,Pomona Pitzer,,,,,,,https://media.api-sports.io/american-football/teams/793.png
+NCAAF,794,Wheaton,,,,,,,https://media.api-sports.io/american-football/teams/794.png
+NCAAF,795,Madonna University (Mich.),,,,,,,https://media.api-sports.io/american-football/teams/795.png
+NCAAF,796,Saint John's (MN),,,,,,,https://media.api-sports.io/american-football/teams/796.png
+NCAAF,797,Lawrence University,,,,,,,https://media.api-sports.io/american-football/teams/797.png
+NCAAF,799,St. Olaf,,,,,,,https://media.api-sports.io/american-football/teams/799.png
+NCAAF,800,Eastern Oregon,,,,,,,https://media.api-sports.io/american-football/teams/800.png
+NCAAF,803,Arizona Christian,,,,,,,https://media.api-sports.io/american-football/teams/803.png
+NCAAF,804,Wayland Baptist,,,,,,,https://media.api-sports.io/american-football/teams/804.png
+NCAAF,805,Wesleyan University (CT),,,,,,,https://media.api-sports.io/american-football/teams/805.png
+NCAAF,806,Trinity (CT),,,,,,,https://media.api-sports.io/american-football/teams/806.png
+NCAAF,808,Southern Oregon,,,,,,,https://media.api-sports.io/american-football/teams/808.png
+NCAAF,809,Williams,,,,,,,https://media.api-sports.io/american-football/teams/809.png
+NCAAF,811,Washington and Lee,,,,,,,https://media.api-sports.io/american-football/teams/811.png
+NCAAF,813,Sam Houston,,,,,,,https://media.api-sports.io/american-football/teams/813.png
+NCAAF,815,St. Thomas-Minnesota,,,,,,,https://media.api-sports.io/american-football/teams/815.png
+NCAAF,816,,,,,,,,https://media.api-sports.io/american-football/teams/816.png
+NCAAF,825,Minnesota State Mankato,,,,,,,https://media.api-sports.io/american-football/teams/825.png
+NCAAF,828,University Of Charleston (WV),,,,,,,https://media.api-sports.io/american-football/teams/828.png
+NCAAF,829,Wisconsin-Lacrosse,,,,,,,https://media.api-sports.io/american-football/teams/829.png
+NCAAF,830,Pace,,,,,,,https://media.api-sports.io/american-football/teams/830.png
+NCAAF,831,East Central (OK),,,,,,,https://media.api-sports.io/american-football/teams/831.png
+NCAAF,832,Belhaven,,,,,,,https://media.api-sports.io/american-football/teams/832.png
+NCAAF,833,Susquehanna,,,,,,,https://media.api-sports.io/american-football/teams/833.png
+NCAAF,834,Bridgewater (VA),,,,,,,https://media.api-sports.io/american-football/teams/834.png
+NCAAF,835,Anderson (SC),,,,,,,https://media.api-sports.io/american-football/teams/835.png
+NCAAF,836,Widener,,,,,,,https://media.api-sports.io/american-football/teams/836.png
+NCAAF,837,Johns Hopkins University,,,,,,,https://media.api-sports.io/american-football/teams/837.png
+NCAAF,838,Cortland,,,,,,,https://media.api-sports.io/american-football/teams/838.png
+NCAAF,839,Wisconsin-Stevens Pt,,,,,,,https://media.api-sports.io/american-football/teams/839.png
+NCAAF,840,Calvin University,,,,,,,https://media.api-sports.io/american-football/teams/840.png
+NCAAF,843,Nichols College,,,,,,,https://media.api-sports.io/american-football/teams/843.png
+NCAAF,844,Bridgewater State,,,,,,,https://media.api-sports.io/american-football/teams/844.png
+NCAAF,845,North Carolina Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/845.png
+NCAAF,846,Augustana (IL),,,,,,,https://media.api-sports.io/american-football/teams/846.png
+NCAAF,847,Trinity (TX),,,,,,,https://media.api-sports.io/american-football/teams/847.png
+NCAAF,849,Dakota State University,,,,,,,https://media.api-sports.io/american-football/teams/849.png
+NCAAF,850,Washington University-St. Louis,,,,,,,https://media.api-sports.io/american-football/teams/850.png
+NCAAF,851,Centenary,,,,,,,https://media.api-sports.io/american-football/teams/851.png
+NCAAF,852,Simpson University (Ca),,,,,,,https://media.api-sports.io/american-football/teams/852.png
+NCAAF,853,Capital,,,,,,,https://media.api-sports.io/american-football/teams/853.png
+NCAAF,855,Concordia-Wisconsin,,,,,,,https://media.api-sports.io/american-football/teams/855.png
+NCAAF,856,Tufts,,,,,,,https://media.api-sports.io/american-football/teams/856.png
+NCAAF,860,North Central College,,,,,,,https://media.api-sports.io/american-football/teams/860.png
+NCAAF,869,Hobart College,,,,,,,https://media.api-sports.io/american-football/teams/869.png
+NCAAF,870,Lock Haven University,,,,,,,https://media.api-sports.io/american-football/teams/870.png
+NCAAF,873,Jamestown,,,,,,,https://media.api-sports.io/american-football/teams/873.png
+NCAAF,877,Bethel (TN),,,,,,,https://media.api-sports.io/american-football/teams/877.png
+NCAAF,878,Langston,,,,,,,https://media.api-sports.io/american-football/teams/878.png
+NCAAF,879,Nelson University,,,,,,,https://media.api-sports.io/american-football/teams/879.png
+NCAAF,880,East Texas A&M,,,,,,,https://media.api-sports.io/american-football/teams/880.png
+NCAAF,881,Cumberland (TN),,,,,,,https://media.api-sports.io/american-football/teams/881.png
+NCAAF,882,UT Rio Grande Valley,,,,,,,https://media.api-sports.io/american-football/teams/882.png
+NCAAF,883,Bluefield University,,,,,,,https://media.api-sports.io/american-football/teams/883.png
+NCAAF,884,Saint Francis,,,,,,,https://media.api-sports.io/american-football/teams/884.png
+NCAAF,885,Texas Wesleyan,,,,,,,https://media.api-sports.io/american-football/teams/885.png
+NCAAF,886,Marian,,,,,,,https://media.api-sports.io/american-football/teams/886.png
+NCAAF,887,Barton,,,,,,,https://media.api-sports.io/american-football/teams/887.png
+NCAAF,888,Midland University,,,,,,,https://media.api-sports.io/american-football/teams/888.png
+NCAAF,889,New England College,,,,,,,https://media.api-sports.io/american-football/teams/889.png
+NCAAF,890,Roanoke College,,,,,,,https://media.api-sports.io/american-football/teams/890.png
+NCAAF,891,Saint Xavier (Il),,,,,,,https://media.api-sports.io/american-football/teams/891.png
+NCAAF,892,University Of Rio Grande,,,,,,,https://media.api-sports.io/american-football/teams/892.png
+NCAAF,893,Pikeville,,,,,,,https://media.api-sports.io/american-football/teams/893.png

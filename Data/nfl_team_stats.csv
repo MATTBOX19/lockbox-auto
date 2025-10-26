@@ -1,0 +1,35 @@
+league,id,team,code,city,stadium,coach,owner,established,logo
+NFL,1,Las Vegas Raiders,LV,Las Vegas,Allegiant Stadium,Antonio Pierce (interim),Carol and Mark Davis,1960.0,https://media.api-sports.io/american-football/teams/1.png
+NFL,2,Jacksonville Jaguars,JAX,Jacksonville,EverBank Stadium,Doug Pederson,Shahid Khan,1995.0,https://media.api-sports.io/american-football/teams/2.png
+NFL,3,New England Patriots,NE,Foxborough,Gillette Stadium,Bill Belichick,Robert Kraft,1960.0,https://media.api-sports.io/american-football/teams/3.png
+NFL,4,New York Giants,NYG,New York,MetLife Stadium,Brian Daboll,"John Mara, Steve Tisch",1925.0,https://media.api-sports.io/american-football/teams/4.png
+NFL,5,Baltimore Ravens,BAL,Baltimore,M&T Bank Stadium,John Harbaugh,Steve Bisciotti,1996.0,https://media.api-sports.io/american-football/teams/5.png
+NFL,6,Tennessee Titans,TEN,Nashville,Nissan Stadium,Mike Vrabel,Amy Adams Strunk,1960.0,https://media.api-sports.io/american-football/teams/6.png
+NFL,7,Detroit Lions,DET,Detroit,Ford Field,Dan Campbell,Sheila Ford Hamp,1930.0,https://media.api-sports.io/american-football/teams/7.png
+NFL,8,Atlanta Falcons,ATL,Atlanta,Mercedes-Benz Stadium,Arthur Smith,Arthur Blank,1966.0,https://media.api-sports.io/american-football/teams/8.png
+NFL,9,Cleveland Browns,CLE,Cleveland,Cleveland Browns Stadium,Kevin Stefanski,Dee and Jimmy Haslam,1946.0,https://media.api-sports.io/american-football/teams/9.png
+NFL,10,Cincinnati Bengals,CIN,Cincinnati,Paycor Stadium,Zac Taylor,Mike Brown,1968.0,https://media.api-sports.io/american-football/teams/10.png
+NFL,11,Arizona Cardinals,ARI,Glendale,State Farm Stadium,Jonathan Gannon,Michael Bidwill,1920.0,https://media.api-sports.io/american-football/teams/11.png
+NFL,12,Philadelphia Eagles,PHI,Philadelphia,Lincoln Financial Field,Nick Sirianni,Jeffrey Lurie,1933.0,https://media.api-sports.io/american-football/teams/12.png
+NFL,13,New York Jets,NYJ,New York,MetLife Stadium,Robert Saleh,Robert Wood Johnson IV,1960.0,https://media.api-sports.io/american-football/teams/13.png
+NFL,14,San Francisco 49ers,SF,San Francisco,Levi's® Stadium,Kyle Shanahan,Jed York,1946.0,https://media.api-sports.io/american-football/teams/14.png
+NFL,15,Green Bay Packers,GB,Green Bay,Lambeau Field,Matt LaFleur,"Green Bay Packers, Inc.",1921.0,https://media.api-sports.io/american-football/teams/15.png
+NFL,16,Chicago Bears,CHI,Chicago,Soldier Field,Matt Eberflus,Virginia Halas McCaskey,1920.0,https://media.api-sports.io/american-football/teams/16.png
+NFL,17,Kansas City Chiefs,KC,Kansas City,GEHA Field at Arrowhead Stadium,Andy Reid,Clark Hunt,1960.0,https://media.api-sports.io/american-football/teams/17.png
+NFL,18,Washington Commanders,WAS,Washington,FedExField,Ron Rivera,Josh Harris,1932.0,https://media.api-sports.io/american-football/teams/18.png
+NFL,19,Carolina Panthers,CAR,Charlotte,Bank of America Stadium,Chris Tabor (interim),David Tepper,1995.0,https://media.api-sports.io/american-football/teams/19.png
+NFL,20,Buffalo Bills,BUF,Buffalo,Highmark Stadium,Sean McDermott,Kim and Terry Pegula,1960.0,https://media.api-sports.io/american-football/teams/20.png
+NFL,21,Indianapolis Colts,IND,Indianapolis,Lucas Oil Stadium,Shane Steichen,Jim Irsay,1944.0,https://media.api-sports.io/american-football/teams/21.png
+NFL,22,Pittsburgh Steelers,PIT,Pittsburgh,Acrisure Stadium,Mike Tomlin,Art Rooney II and Family,1933.0,https://media.api-sports.io/american-football/teams/22.png
+NFL,23,Seattle Seahawks,SEA,Seattle,Lumen Field,Pete Carroll,Seattle Seahawks Ownership Trust,1976.0,https://media.api-sports.io/american-football/teams/23.png
+NFL,24,Tampa Bay Buccaneers,TB,Tampa,Raymond James Stadium,Todd Bowles,"Bryan Glazer, Edward Glazer, Joel Glazer",1976.0,https://media.api-sports.io/american-football/teams/24.png
+NFL,25,Miami Dolphins,MIA,Miami,Hard Rock Stadium,Mike McDaniel,Stephen M. Ross,1966.0,https://media.api-sports.io/american-football/teams/25.png
+NFL,26,Houston Texans,HOU,Houston,NRG Stadium,DeMeco Ryans,Janice S. McNair,2002.0,https://media.api-sports.io/american-football/teams/26.png
+NFL,27,New Orleans Saints,NO,New Orleans,Caesars Superdome,Dennis Allen,Gayle Benson,1967.0,https://media.api-sports.io/american-football/teams/27.png
+NFL,28,Denver Broncos,DEN,Denver,Empower Field at Mile High,Sean Payton,Walton-Penner Family Ownership Group,1960.0,https://media.api-sports.io/american-football/teams/28.png
+NFL,29,Dallas Cowboys,DAL,Dallas,AT&T Stadium,Mike McCarthy,Jerry Jones,1960.0,https://media.api-sports.io/american-football/teams/29.png
+NFL,30,Los Angeles Chargers,LAC,Los Angeles,SoFi Stadium,Giff Smith (interim),Alex Spanos and Family,1960.0,https://media.api-sports.io/american-football/teams/30.png
+NFL,31,Los Angeles Rams,LA,Los Angeles,SoFi Stadium,Sean McVay,Stan Kroenke,1937.0,https://media.api-sports.io/american-football/teams/31.png
+NFL,32,Minnesota Vikings,MIN,Minneapolis,U.S. Bank Stadium,Kevin O'Connell,Zygi Wilf,1961.0,https://media.api-sports.io/american-football/teams/32.png
+NFL,33,NFC,,,,,,,https://media.api-sports.io/american-football/teams/33.png
+NFL,34,AFC,,,,,,,https://media.api-sports.io/american-football/teams/34.png

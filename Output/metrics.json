@@ -1,0 +1,93 @@
+[
+  {
+    "timestamp": "2025-10-25T22:38:08.527810",
+    "file": "Predictions_2025-10-25_Settled.csv",
+    "games_total": 95,
+    "games_settled": 35,
+    "win_pct": 68.57,
+    "avg_edge": 17.068,
+    "avg_confidence": 63.335,
+    "roi_percent": 37.14
+  },
+  {
+    "timestamp": "2025-10-25T22:38:09.138727",
+    "file": "Predictions_2025-10-25_Settled.csv",
+    "games_total": 95,
+    "games_settled": 35,
+    "avg_edge": 16.892,
+    "avg_confidence": 63.373,
+    "ml_wins": 24,
+    "ml_losses": 11,
+    "ml_pushes": 0,
+    "ml_win_pct": 68.57,
+    "ml_roi_percent": 37.14,
+    "ats_wins": 19,
+    "ats_losses": 15,
+    "ats_pushes": 0,
+    "ats_win_pct": 55.88,
+    "ats_roi_percent": 11.76,
+    "ou_wins": 34,
+    "ou_losses": 0,
+    "ou_pushes": 0,
+    "ou_win_pct": 100.0,
+    "ou_roi_percent": 100.0,
+    "per_sport": {
+      "MLB": {
+        "ML": {
+          "win_pct": 100.0,
+          "roi": 100.0
+        },
+        "ATS": {
+          "win_pct": 100.0,
+          "roi": 100.0
+        },
+        "OU": {
+          "win_pct": 100.0,
+          "roi": 100.0
+        }
+      },
+      "NBA": {
+        "ML": {
+          "win_pct": 71.43,
+          "roi": 42.86
+        },
+        "ATS": {
+          "win_pct": 61.9,
+          "roi": 23.81
+        },
+        "OU": {
+          "win_pct": 100.0,
+          "roi": 100.0
+        }
+      },
+      "NCAAF": {
+        "ML": {
+          "win_pct": 50.0,
+          "roi": 0.0
+        },
+        "ATS": {
+          "win_pct": 0.0,
+          "roi": -100.0
+        },
+        "OU": {
+          "win_pct": 100.0,
+          "roi": 100.0
+        }
+      },
+      "NHL": {
+        "ML": {
+          "win_pct": 66.67,
+          "roi": 33.33
+        },
+        "ATS": {
+          "win_pct": 55.56,
+          "roi": 11.11
+        },
+        "OU": {
+          "win_pct": 100.0,
+          "roi": 100.0
+        }
+      }
+    }
+  }
+]

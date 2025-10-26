@@ -1,0 +1,33 @@
+league,id,team,code,city,stadium,coach,owner,established,logo
+MLB,1,American League,,,,,,,https://media.api-sports.io/baseball/teams/1.png
+MLB,2,Arizona Diamondbacks,,,,,,,https://media.api-sports.io/baseball/teams/2.png
+MLB,963,Athletics,,,,,,,https://media.api-sports.io/baseball/teams/963.png
+MLB,3,Atlanta Braves,,,,,,,https://media.api-sports.io/baseball/teams/3.png
+MLB,4,Baltimore Orioles,,,,,,,https://media.api-sports.io/baseball/teams/4.png
+MLB,5,Boston Red Sox,,,,,,,https://media.api-sports.io/baseball/teams/5.png
+MLB,6,Chicago Cubs,,,,,,,https://media.api-sports.io/baseball/teams/6.png
+MLB,7,Chicago White Sox,,,,,,,https://media.api-sports.io/baseball/teams/7.png
+MLB,8,Cincinnati Reds,,,,,,,https://media.api-sports.io/baseball/teams/8.png
+MLB,9,Cleveland Guardians,,,,,,,https://media.api-sports.io/baseball/teams/9.png
+MLB,10,Colorado Rockies,,,,,,,https://media.api-sports.io/baseball/teams/10.png
+MLB,12,Detroit Tigers,,,,,,,https://media.api-sports.io/baseball/teams/12.png
+MLB,15,Houston Astros,,,,,,,https://media.api-sports.io/baseball/teams/15.png
+MLB,16,Kansas City Royals,,,,,,,https://media.api-sports.io/baseball/teams/16.png
+MLB,17,Los Angeles Angels,,,,,,,https://media.api-sports.io/baseball/teams/17.png
+MLB,18,Los Angeles Dodgers,,,,,,,https://media.api-sports.io/baseball/teams/18.png
+MLB,19,Miami Marlins,,,,,,,https://media.api-sports.io/baseball/teams/19.png
+MLB,20,Milwaukee Brewers,,,,,,,https://media.api-sports.io/baseball/teams/20.png
+MLB,22,Minnesota Twins,,,,,,,https://media.api-sports.io/baseball/teams/22.png
+MLB,23,National League,,,,,,,https://media.api-sports.io/baseball/teams/23.png
+MLB,24,New York Mets,,,,,,,https://media.api-sports.io/baseball/teams/24.png
+MLB,25,New York Yankees,,,,,,,https://media.api-sports.io/baseball/teams/25.png
+MLB,27,Philadelphia Phillies,,,,,,,https://media.api-sports.io/baseball/teams/27.png
+MLB,28,Pittsburgh Pirates,,,,,,,https://media.api-sports.io/baseball/teams/28.png
+MLB,30,San Diego Padres,,,,,,,https://media.api-sports.io/baseball/teams/30.png
+MLB,31,San Francisco Giants,,,,,,,https://media.api-sports.io/baseball/teams/31.png
+MLB,32,Seattle Mariners,,,,,,,https://media.api-sports.io/baseball/teams/32.png
+MLB,33,St.Louis Cardinals,,,,,,,https://media.api-sports.io/baseball/teams/33.png
+MLB,34,Tampa Bay Rays,,,,,,,https://media.api-sports.io/baseball/teams/34.png
+MLB,35,Texas Rangers,,,,,,,https://media.api-sports.io/baseball/teams/35.png
+MLB,36,Toronto Blue Jays,,,,,,,https://media.api-sports.io/baseball/teams/36.png
+MLB,37,Washington Nationals,,,,,,,https://media.api-sports.io/baseball/teams/37.png
