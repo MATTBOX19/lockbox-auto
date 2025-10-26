@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime
 
+# ------------------- CONFIG -------------------
 API_KEY = os.getenv("APISPORTS_KEY")
 if not API_KEY:
     raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
@@ -19,11 +20,12 @@ LEAGUES = {
     "NHL": ("hockey", 57),
 }
 
+# ------------------- HELPERS -------------------
 def fetch_json(url, params=None):
     """Safe request wrapper for API-Sports"""
     print(f"→ Fetching {url} {params}", flush=True)
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
+        r = requests.get(url, headers=HEADERS, params=params, timeout=15)
         if r.status_code != 200:
             print(f"❌ HTTP {r.status_code}")
             return {}
@@ -39,6 +41,7 @@ def fetch_json(url, params=None):
         return {}
 
 def fetch_teams(sport, league_id, season):
+    """Fetch team metadata for non-football leagues."""
     url = f"https://v1.{sport}.api-sports.io/teams"
     data = fetch_json(url, {"league": league_id, "season": season})
     if not data.get("response"):
@@ -49,39 +52,29 @@ def fetch_teams(sport, league_id, season):
     return df
 
 def fetch_standings(league_name, league_id, season):
+    """Fetch standings (wins/losses/points) for football leagues."""
     url = "https://v1.american-football.api-sports.io/standings"
     data = fetch_json(url, {"league": league_id, "season": season})
     if not data.get("response"):
         print(f"⚠️ {league_name}: no standings.")
         return pd.DataFrame()
-    rows = []
-    for t in data["response"]:
-        team = t.get("team", {}).get("name")
-        if not team:
-            continue
-        games = t.get("games", {})
-        rows.append({
-            "league": league_name,
-            "team": team,
-            "wins": games.get("won"),
-            "losses": games.get("lost"),
-            "ties": games.get("ties"),
-            "points_for": t.get("points", {}).get("for"),
-            "points_against": t.get("points", {}).get("against"),
-        })
-    df = pd.DataFrame(rows)
-    if not df.empty:
-        df["games_played"] = df[["wins", "losses", "ties"]].fillna(0).sum(axis=1)
-        df["win_pct"] = (df["wins"] / df["games_played"]).round(3)
-        print(f"📊 {league_name}: {len(df)} standings records.")
+
+    df = pd.json_normalize(data["response"])
+    cols = ["team.name", "won", "lost", "ties", "points.for", "points.against"]
+    df = df[cols]
+    df.columns = ["team", "wins", "losses", "ties", "points_for", "points_against"]
+    df["league"] = league_name
+    print(f"📊 {league_name}: {len(df)} standings records.")
     return df
 
 def fetch_games(league_name, league_id, season):
+    """Fetch game-level scoring data for football leagues."""
     url = "https://v1.american-football.api-sports.io/games"
     data = fetch_json(url, {"league": league_id, "season": season})
     if not data.get("response"):
         print(f"⚠️ {league_name}: no games.")
         return pd.DataFrame()
+
     rows = []
     for g in data["response"]:
         teams = g.get("teams", {})
@@ -97,6 +90,7 @@ def fetch_games(league_name, league_id, season):
                 "points": s,
                 "season": season,
             })
+
     df = pd.DataFrame(rows)
     if not df.empty:
         summary = df.groupby(["league", "team"]).agg(
@@ -107,34 +101,47 @@ def fetch_games(league_name, league_id, season):
         return summary
     return pd.DataFrame()
 
+# ------------------- MAIN -------------------
 def main():
     print(f"🏁 Starting API-Sports data fetcher at {datetime.now():%H:%M:%S}\n", flush=True)
     all_dfs = []
     for league, (sport, league_id) in LEAGUES.items():
         print(f"🔹 Fetching {league} ({sport})...", flush=True)
+
+        # ✅ FIXED: use verified standings structure for football
         if sport == "american-football":
             standings_df = fetch_standings(league, league_id, 2025)
             games_df = fetch_games(league, league_id, 2025)
             if standings_df.empty and games_df.empty:
                 print(f"⚠️ {league}: skipped (no data).")
                 continue
-            merged = pd.merge(standings_df, games_df, on=["league", "team"], how="left")
+
+            if not games_df.empty:
+                merged = pd.merge(standings_df, games_df, on=["league", "team"], how="left")
+            else:
+                merged = standings_df
+
             if merged.empty:
                 print(f"⚠️ {league}: no merged data.")
                 continue
+
             out_path = os.path.join(DATA_DIR, f"{league.lower()}_stats.csv")
             merged.to_csv(out_path, index=False)
             all_dfs.append(merged)
             print(f"💾 Saved {out_path}")
-        else:
-            teams_df = fetch_teams(sport, league_id, 2025)
-            if teams_df.empty:
-                print(f"⚠️ {league}: skipped (no data).")
-                continue
-            out_path = os.path.join(DATA_DIR, f"{league.lower()}_team_stats.csv")
-            teams_df.to_csv(out_path, index=False)
-            all_dfs.append(teams_df)
-            print(f"💾 Saved {out_path}")
+            continue
+
+        # Non-football leagues (teams only)
+        teams_df = fetch_teams(sport, league_id, 2025)
+        if teams_df.empty:
+            print(f"⚠️ {league}: skipped (no data).")
+            continue
+        out_path = os.path.join(DATA_DIR, f"{league.lower()}_team_stats.csv")
+        teams_df.to_csv(out_path, index=False)
+        all_dfs.append(teams_df)
+        print(f"💾 Saved {out_path}")
+
+    # Combine results
     if all_dfs:
         combined = pd.concat(all_dfs, ignore_index=True)
         combined_path = os.path.join(DATA_DIR, "team_stats_latest.csv")
