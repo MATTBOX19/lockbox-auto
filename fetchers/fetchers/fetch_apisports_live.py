@@ -1,18 +1,19 @@
+#!/usr/bin/env python3
 import os
 import requests
 import pandas as pd
 from datetime import datetime
+import time
 
-# ---------------- CONFIG ----------------
 API_KEY = os.getenv("APISPORTS_KEY")
 if not API_KEY:
     raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
 
 HEADERS = {"x-apisports-key": API_KEY}
-
 DATA_DIR = "Data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
+# league name → (sport type, league id)
 LEAGUES = {
     "NFL": ("american-football", 1),
     "NCAAF": ("american-football", 2),
@@ -21,36 +22,32 @@ LEAGUES = {
     "NHL": ("hockey", 57),
 }
 
-# ---------------- UTILITIES ----------------
+
+# ---------------------- HELPERS ----------------------
+
 def fetch_json(url, params=None):
-    """Safe request wrapper for API-Sports."""
-    print(f"\n🔎 DEBUG → Fetching {url} with {params}", flush=True)
+    """Simple JSON fetch wrapper."""
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=15)
-        print(f"🔎 DEBUG → HTTP {r.status_code}", flush=True)
-        if r.status_code != 200:
-            print("❌ DEBUG → Non-200 response, returning empty dict", flush=True)
-            return {}
+        r = requests.get(url, headers=HEADERS, params=params, timeout=20)
+        r.raise_for_status()
         data = r.json()
-        print(f"🔎 DEBUG → Keys: {list(data.keys())}", flush=True)
         if not data.get("response"):
-            print("⚠️ DEBUG → Empty response array", flush=True)
-        else:
-            print(f"✅ DEBUG → Response length: {len(data.get('response', []))}", flush=True)
+            print(f"⚠️ Empty response from {url}")
         return data
     except Exception as e:
-        print(f"❌ DEBUG → Request failed: {e}", flush=True)
+        print(f"❌ Error fetching {url}: {e}")
         return {}
 
-# ---------------- STANDINGS ----------------
-def fetch_standings(league_name, league_id, season):
-    """Fetch standings (wins/losses/points) for football leagues."""
-    print(f"\n🏈 DEBUG → Requesting standings for {league_name} ({league_id}) season={season}", flush=True)
+
+# ---------------------- FOOTBALL ----------------------
+
+def fetch_standings(league_name, league_id, season=2025):
+    """Fetch NFL/NCAAF standings (wins/losses/points)."""
     url = "https://v1.american-football.api-sports.io/standings"
     data = fetch_json(url, {"league": league_id, "season": season})
 
     if not data.get("response"):
-        print(f"⚠️ DEBUG → {league_name}: no standings returned.", flush=True)
+        print(f"⚠️ {league_name}: no standings data.")
         return pd.DataFrame()
 
     rows = []
@@ -58,69 +55,75 @@ def fetch_standings(league_name, league_id, season):
         team = t.get("team", {}).get("name")
         if not team:
             continue
-        pts = t.get("points", {})
+        points = t.get("points", {})
         rows.append({
             "league": league_name,
             "team": team,
-            "wins": t.get("won"),          # ✅ FIXED (was games.won)
+            "wins": t.get("won"),
             "losses": t.get("lost"),
             "ties": t.get("ties"),
-            "points_for": pts.get("for"),
-            "points_against": pts.get("against"),
+            "points_for": points.get("for"),
+            "points_against": points.get("against"),
         })
 
     df = pd.DataFrame(rows)
-    print(f"✅ DEBUG → {league_name} standings shape: {df.shape}", flush=True)
-    print(df.head(5))
+    if not df.empty:
+        df["games_played"] = df[["wins", "losses", "ties"]].fillna(0).sum(axis=1)
+        df["win_pct"] = (df["wins"] / df["games_played"]).round(3)
+        print(f"✅ {league_name}: {len(df)} teams fetched from standings.")
     return df
 
-# ---------------- TEAMS ----------------
-def fetch_teams(sport, league_id, season):
-    """Fetch team metadata for non-football leagues."""
-    print(f"\n🏀 DEBUG → Requesting teams for {sport.upper()} league_id={league_id}, season={season}", flush=True)
+
+# ---------------------- GENERIC TEAMS ----------------------
+
+def fetch_teams(sport, league_id, season=2025):
+    """Fetch metadata for non-football leagues."""
     url = f"https://v1.{sport}.api-sports.io/teams"
     data = fetch_json(url, {"league": league_id, "season": season})
     if not data.get("response"):
-        print(f"⚠️ DEBUG → {sport.upper()} {season}: no data returned.", flush=True)
+        print(f"⚠️ {sport.upper()} {season}: no team data.")
         return pd.DataFrame()
     df = pd.json_normalize(data["response"])
-    print(f"✅ DEBUG → {sport.upper()} {season}: {len(df)} teams.", flush=True)
+    print(f"✅ {sport.upper()} {season}: {len(df)} teams.")
     return df
 
-# ---------------- MAIN ----------------
-def main():
-    print(f"\n🚀 DEBUG → Starting API-Sports fetcher at {datetime.now():%Y-%m-%d %H:%M:%S}", flush=True)
-    print(f"DEBUG → API Key prefix: {API_KEY[:6]}...", flush=True)
-    print(f"DEBUG → Leagues to fetch: {LEAGUES}", flush=True)
 
+# ---------------------- MAIN ----------------------
+
+def main():
+    print(f"🏁 Starting API-Sports fetcher at {datetime.now():%Y-%m-%d %H:%M:%S}")
     all_dfs = []
 
     for league, (sport, league_id) in LEAGUES.items():
-        print(f"\n🔹 DEBUG → Fetching {league} ({sport})...", flush=True)
-        if sport == "american-football":
-            df = fetch_standings(league, league_id, 2025)
-        else:
-            df = fetch_teams(sport, league_id, 2025)
+        print(f"🏈 Fetching league: {league} ({sport})")
 
-        if df.empty:
-            print(f"⚠️ DEBUG → {league}: no data retrieved.\n", flush=True)
+        if sport == "american-football":
+            df = fetch_standings(league, league_id)
+        else:
+            df = fetch_teams(sport, league_id)
+
+        if df is None or df.empty:
+            print(f"⚠️ {league}: no data returned.")
             continue
 
         out_path = os.path.join(DATA_DIR, f"{league.lower()}_stats.csv")
         df.to_csv(out_path, index=False)
-        print(f"💾 DEBUG → Saved {out_path} ({len(df)} rows)", flush=True)
         all_dfs.append(df)
+        print(f"💾 Saved {league} → {out_path}")
 
-    if all_dfs:
-        combined = pd.concat(all_dfs, ignore_index=True)
-        combined_path = os.path.join(DATA_DIR, "team_stats_latest.csv")
-        combined.to_csv(combined_path, index=False)
-        print(f"\n🎉 DEBUG → Combined {len(combined)} rows across {len(all_dfs)} leagues.")
-        print(f"✅ DEBUG → Saved merged file → {combined_path}")
-    else:
-        print("⚠️ DEBUG → No leagues returned any data.", flush=True)
+        time.sleep(0.5)  # rate limit
 
-    print(f"🏁 DEBUG → Completed at {datetime.now():%Y-%m-%d %H:%M:%S}", flush=True)
+    if not all_dfs:
+        print("⚠️ No leagues returned any data.")
+        return
+
+    combined = pd.concat(all_dfs, ignore_index=True)
+    combined_path = os.path.join(DATA_DIR, "team_stats_latest.csv")
+    combined.to_csv(combined_path, index=False)
+    print(f"\n🎉 Combined {len(combined)} total rows across {len(all_dfs)} leagues.")
+    print(f"✅ Saved merged file → {combined_path}")
+    print(f"🕒 Completed at {datetime.now():%Y-%m-%d %H:%M:%S}")
+
 
 if __name__ == "__main__":
     main()
