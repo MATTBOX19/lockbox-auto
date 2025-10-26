@@ -3,9 +3,11 @@ import requests
 import pandas as pd
 from datetime import datetime
 
+# ---------------- CONFIG ----------------
 API_KEY = os.getenv("APISPORTS_KEY")
 if not API_KEY:
     raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
+
 HEADERS = {"x-apisports-key": API_KEY}
 
 DATA_DIR = "Data"
@@ -19,88 +21,106 @@ LEAGUES = {
     "NHL": ("hockey", 57),
 }
 
+# ---------------- UTILITIES ----------------
 def fetch_json(url, params=None):
+    """Safe request wrapper for API-Sports."""
+    print(f"\n🔎 DEBUG → Fetching {url} with {params}", flush=True)
     try:
         r = requests.get(url, headers=HEADERS, params=params, timeout=15)
-        r.raise_for_status()
+        print(f"🔎 DEBUG → HTTP {r.status_code}", flush=True)
+        if r.status_code != 200:
+            print("❌ DEBUG → Non-200 response, returning empty dict", flush=True)
+            return {}
         data = r.json()
+        print(f"🔎 DEBUG → Keys: {list(data.keys())}", flush=True)
+        if not data.get("response"):
+            print("⚠️ DEBUG → Empty response array", flush=True)
+        else:
+            print(f"✅ DEBUG → Response length: {len(data.get('response', []))}", flush=True)
         return data
     except Exception as e:
-        print(f"❌ Request failed: {e}")
+        print(f"❌ DEBUG → Request failed: {e}", flush=True)
         return {}
 
+# ---------------- STANDINGS ----------------
 def fetch_standings(league_name, league_id, season):
-    """Fetch football standings."""
+    """Fetch standings (wins/losses/points) for football leagues."""
+    print(f"\n🏈 DEBUG → Requesting standings for {league_name} ({league_id}) season={season}", flush=True)
     url = "https://v1.american-football.api-sports.io/standings"
-    print(f"🏈 Calling standings API → {url}?league={league_id}&season={season}")
     data = fetch_json(url, {"league": league_id, "season": season})
+
     if not data.get("response"):
-        print(f"⚠️ {league_name}: no standings returned.")
+        print(f"⚠️ DEBUG → {league_name}: no standings returned.", flush=True)
         return pd.DataFrame()
 
     rows = []
-    for item in data["response"]:
-        team = item.get("team", {}).get("name")
+    for t in data["response"]:
+        team = t.get("team", {}).get("name")
         if not team:
             continue
-        pts = item.get("points", {})
+        pts = t.get("points", {})
         rows.append({
             "league": league_name,
             "team": team,
-            "wins": item.get("won"),
-            "losses": item.get("lost"),
-            "ties": item.get("ties"),
+            "wins": t.get("won"),          # ✅ FIXED (was games.won)
+            "losses": t.get("lost"),
+            "ties": t.get("ties"),
             "points_for": pts.get("for"),
             "points_against": pts.get("against"),
-            "streak": item.get("streak"),
         })
+
     df = pd.DataFrame(rows)
-    print(f"✅ {league_name}: {len(df)} records from standings API")
+    print(f"✅ DEBUG → {league_name} standings shape: {df.shape}", flush=True)
+    print(df.head(5))
     return df
 
+# ---------------- TEAMS ----------------
 def fetch_teams(sport, league_id, season):
-    """Generic teams fetch for other sports."""
+    """Fetch team metadata for non-football leagues."""
+    print(f"\n🏀 DEBUG → Requesting teams for {sport.upper()} league_id={league_id}, season={season}", flush=True)
     url = f"https://v1.{sport}.api-sports.io/teams"
-    print(f"🏀 Fetching teams from {url}?league={league_id}&season={season}")
     data = fetch_json(url, {"league": league_id, "season": season})
     if not data.get("response"):
-        print(f"⚠️ {sport.upper()} returned no teams for {season}.")
+        print(f"⚠️ DEBUG → {sport.upper()} {season}: no data returned.", flush=True)
         return pd.DataFrame()
     df = pd.json_normalize(data["response"])
-    print(f"✅ {sport.upper()}: {len(df)} teams retrieved.")
+    print(f"✅ DEBUG → {sport.upper()} {season}: {len(df)} teams.", flush=True)
     return df
 
+# ---------------- MAIN ----------------
 def main():
-    print(f"🚀 Starting API-Sports data fetcher at {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+    print(f"\n🚀 DEBUG → Starting API-Sports fetcher at {datetime.now():%Y-%m-%d %H:%M:%S}", flush=True)
+    print(f"DEBUG → API Key prefix: {API_KEY[:6]}...", flush=True)
+    print(f"DEBUG → Leagues to fetch: {LEAGUES}", flush=True)
 
     all_dfs = []
-    for league, (sport, league_id) in LEAGUES.items():
-        print(f"🔹 Fetching {league} ({sport})...")
 
+    for league, (sport, league_id) in LEAGUES.items():
+        print(f"\n🔹 DEBUG → Fetching {league} ({sport})...", flush=True)
         if sport == "american-football":
             df = fetch_standings(league, league_id, 2025)
         else:
             df = fetch_teams(sport, league_id, 2025)
 
         if df.empty:
-            print(f"⚠️ {league}: no data fetched.\n")
+            print(f"⚠️ DEBUG → {league}: no data retrieved.\n", flush=True)
             continue
 
         out_path = os.path.join(DATA_DIR, f"{league.lower()}_stats.csv")
         df.to_csv(out_path, index=False)
-        print(f"💾 Saved {league} → {out_path}\n")
+        print(f"💾 DEBUG → Saved {out_path} ({len(df)} rows)", flush=True)
         all_dfs.append(df)
 
     if all_dfs:
         combined = pd.concat(all_dfs, ignore_index=True)
         combined_path = os.path.join(DATA_DIR, "team_stats_latest.csv")
         combined.to_csv(combined_path, index=False)
-        print(f"🎉 Combined {len(combined)} rows across {len(all_dfs)} leagues.")
-        print(f"✅ Saved merged file → {combined_path}")
+        print(f"\n🎉 DEBUG → Combined {len(combined)} rows across {len(all_dfs)} leagues.")
+        print(f"✅ DEBUG → Saved merged file → {combined_path}")
     else:
-        print("⚠️ No data collected from any league.")
+        print("⚠️ DEBUG → No leagues returned any data.", flush=True)
 
-    print(f"🏁 Completed at {datetime.now():%Y-%m-%d %H:%M:%S}")
+    print(f"🏁 DEBUG → Completed at {datetime.now():%Y-%m-%d %H:%M:%S}", flush=True)
 
 if __name__ == "__main__":
     main()
