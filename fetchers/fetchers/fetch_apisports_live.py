@@ -118,7 +118,7 @@ def main():
         print(f"🔹 Fetching {league} ({sport})...")
 
         if sport == "american-football":
-            # NFL / NCAAF: standings + games
+            # Skip /teams and go straight to stats endpoints
             standings_df = fetch_standings(league, league_id, 2025)
             games_df = fetch_games(league, league_id, 2025)
             merged = pd.merge(standings_df, games_df, on=["league", "team"], how="left")
