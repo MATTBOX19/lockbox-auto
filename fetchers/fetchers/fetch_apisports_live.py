@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime
 
-# --- Setup ---
+# ------------------- CONFIG -------------------
 API_KEY = os.getenv("APISPORTS_KEY")
 if not API_KEY:
     raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
@@ -12,7 +12,6 @@ HEADERS = {"x-apisports-key": API_KEY}
 DATA_DIR = "Data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# --- Leagues configuration ---
 LEAGUES = {
     "NFL": ("american-football", 1),
     "NCAAF": ("american-football", 2),
@@ -21,8 +20,9 @@ LEAGUES = {
     "NHL": ("hockey", 57),
 }
 
-# --- Helper functions ---
+# ------------------- HELPERS -------------------
 def fetch_json(url, params=None):
+    """Safe request wrapper for API-Sports"""
     try:
         r = requests.get(url, headers=HEADERS, params=params, timeout=30)
         return r.json()
@@ -36,7 +36,6 @@ def fetch_teams(sport, league_id, season):
     data = fetch_json(url, {"league": league_id, "season": season})
     if not data.get("response"):
         print(f"⚠️ {sport.upper()} ({season}) teams missing.")
-        # try 2024 fallback for basketball
         if sport == "basketball" and season == 2025:
             print(f"↩️ Retrying {sport.upper()} for 2024 season...")
             return fetch_teams(sport, league_id, 2024)
@@ -109,7 +108,7 @@ def fetch_games(league_name, league_id, season):
         return summary
     return pd.DataFrame()
 
-# --- Main process ---
+# ------------------- MAIN -------------------
 def main():
     all_dfs = []
     print("🏁 Starting API-Sports data fetcher...\n")
@@ -118,7 +117,6 @@ def main():
         print(f"🔹 Fetching {league} ({sport})...")
 
         if sport == "american-football":
-            # Skip /teams and go straight to stats endpoints
             standings_df = fetch_standings(league, league_id, 2025)
             games_df = fetch_games(league, league_id, 2025)
             merged = pd.merge(standings_df, games_df, on=["league", "team"], how="left")
@@ -129,16 +127,16 @@ def main():
                 print(f"💾 Saved {league} stats → {out_path}")
             else:
                 print(f"⚠️ {league}: no merged stats found.")
+            continue  # Skip /teams call for football
+
+        teams_df = fetch_teams(sport, league_id, 2025)
+        if not teams_df.empty:
+            out_path = os.path.join(DATA_DIR, f"{league.lower()}_team_stats.csv")
+            teams_df.to_csv(out_path, index=False)
+            all_dfs.append(teams_df)
+            print(f"💾 Saved {league} data → {out_path}")
         else:
-            # NBA/MLB/NHL — team info only
-            teams_df = fetch_teams(sport, league_id, 2025)
-            if not teams_df.empty:
-                out_path = os.path.join(DATA_DIR, f"{league.lower()}_team_stats.csv")
-                teams_df.to_csv(out_path, index=False)
-                all_dfs.append(teams_df)
-                print(f"💾 Saved {league} data → {out_path}")
-            else:
-                print(f"⚠️ {league}: no team data returned.")
+            print(f"⚠️ {league}: no team data returned.")
 
     if not all_dfs:
         print("⚠️ No leagues returned any data.")
