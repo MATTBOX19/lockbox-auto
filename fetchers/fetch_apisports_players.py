@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-fetch_apisports_players.py — LockBox player stats fetcher
-Pulls player-level statistics from API-Sports (NFL first, extendable to other leagues).
+fetch_apisports_players.py — LockBox player stats fetcher (NFL only)
+Falls back to last active season if current season is empty.
 Outputs: Data/player_stats_latest.csv
 """
 
@@ -22,11 +22,9 @@ DATA_DIR = Path("Data")
 DATA_DIR.mkdir(exist_ok=True)
 OUT_FILE = DATA_DIR / "player_stats_latest.csv"
 
-# for now: start with NFL → later extend to other sports
 SPORT = "american-football"
 LEAGUE_ID = 1
-SEASON = 2025
-
+SEASONS = [2025, 2024, 2023]  # will auto-fallback
 
 def fetch_players(league_id: int, season: int) -> pd.DataFrame:
     """Fetch player statistics by team for the league."""
@@ -34,12 +32,12 @@ def fetch_players(league_id: int, season: int) -> pd.DataFrame:
     url = f"https://v1.{SPORT}.api-sports.io/players/statistics"
     print(f"📊 Fetching {SPORT.upper()} player stats for league={league_id} season={season}...")
 
-    # pull team list first
+    # fetch teams
     teams_url = f"https://v1.{SPORT}.api-sports.io/teams"
     teams_resp = requests.get(teams_url, headers=HEADERS, params={"league": league_id, "season": season}, timeout=30)
     teams = teams_resp.json().get("response", [])
     if not teams:
-        print("⚠️ No teams found — check league/season.")
+        print(f"⚠️ No teams for {season}")
         return pd.DataFrame()
 
     for t in teams:
@@ -47,10 +45,8 @@ def fetch_players(league_id: int, season: int) -> pd.DataFrame:
         team_name = t.get("name")
         if not team_id:
             continue
-
-        params = {"league": league_id, "season": season, "team": team_id}
         try:
-            r = requests.get(url, headers=HEADERS, params=params, timeout=30)
+            r = requests.get(url, headers=HEADERS, params={"league": league_id, "season": season, "team": team_id}, timeout=30)
             data = r.json()
         except Exception as e:
             print(f"❌ Failed for team {team_name}: {e}")
@@ -61,6 +57,7 @@ def fetch_players(league_id: int, season: int) -> pd.DataFrame:
             player = p.get("player", {})
             stats = p.get("statistics", [{}])[0]
             entry = {
+                "season": season,
                 "team": team_name,
                 "player_id": player.get("id"),
                 "player_name": player.get("name"),
@@ -73,24 +70,19 @@ def fetch_players(league_id: int, season: int) -> pd.DataFrame:
                 "updated_at": datetime.utcnow().isoformat()
             }
             all_players.append(entry)
-
         time.sleep(0.4)
 
-    if not all_players:
-        print("⚠️ No player stats returned.")
-        return pd.DataFrame()
-
-    df = pd.DataFrame(all_players)
-    df.to_csv(OUT_FILE, index=False)
-    print(f"✅ Saved {len(df)} player rows → {OUT_FILE}")
-    return df
-
+    return pd.DataFrame(all_players)
 
 def main():
-    df = fetch_players(LEAGUE_ID, SEASON)
-    if not df.empty:
-        print(df.head())
-
+    for season in SEASONS:
+        df = fetch_players(LEAGUE_ID, season)
+        if not df.empty:
+            df.to_csv(OUT_FILE, index=False)
+            print(f"✅ Saved {len(df)} player rows for season={season} → {OUT_FILE}")
+            print(f"🕒 Completed at {datetime.utcnow().isoformat()} UTC")
+            return
+    print("⚠️ No player data found in available seasons.")
 
 if __name__ == "__main__":
     main()
