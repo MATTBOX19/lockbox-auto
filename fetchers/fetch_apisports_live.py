@@ -1,16 +1,27 @@
+#!/usr/bin/env python3
+"""
+Robust fetcher for API-Sports that:
+ - Handles american-football via /standings (avoids /teams/statistics problems)
+ - Tries /teams/statistics for other sports, falls back to basic team info
+ - Produces per-league CSVs and a combined Data/team_stats_latest.csv
+This is a full-file replacement — save/commit as-is.
+"""
 import os
+import time
 import requests
 import pandas as pd
 from datetime import datetime
-import time
 
 API_KEY = os.getenv("APISPORTS_KEY")
 if not API_KEY:
-    raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
+    raise EnvironmentError("Missing $APISPORTS_KEY environment variable. Export APISPORTS_KEY and retry.")
 
 HEADERS = {"x-apisports-key": API_KEY}
+DATA_DIR = "Data"
+os.makedirs(DATA_DIR, exist_ok=True)
+SEASON = int(os.getenv("SEASON", "2025"))
 
-# league name → (sport type, league id)
+# league name -> (sport domain, league_id)
 LEAGUES = {
     "nfl": ("american-football", 1),
     "ncaaf": ("american-football", 2),
@@ -19,299 +30,234 @@ LEAGUES = {
     "nhl": ("hockey", 57),
 }
 
-DATA_DIR = "Data"
-os.makedirs(DATA_DIR, exist_ok=True)
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+SESSION.timeout = 20
 
 
-def fetch_teams(sport: str, league_id: int, season=2025) -> pd.DataFrame:
-    """Fetch base team info for the league."""
-    url = f"https://v1.{sport}.api-sports.io/teams"
-    params = {"league": league_id, "season": season}
-    print(f"📊 Fetching {sport.upper()} teams...")
+def _safe_get_json(url, params=None):
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=20)
+        r = SESSION.get(url, params=params, timeout=20)
         r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        print(f"❌ {sport.upper()} teams request failed: {e}")
-        return pd.DataFrame()
-
-    if not data.get("response"):
-        print(f"⚠️ {sport.upper()}: No team data returned.")
-        return pd.DataFrame()
-
-    df = pd.json_normalize(data["response"])
-    df["league_id"] = league_id
-    df["sport"] = sport
-    return df
-
-
-def fetch_team_stats(sport: str, league_id: int, team_id: int, season=2025) -> dict:
-    """Fetch statistics per team (if supported by API-Sports). Fallback to empty dict on errors."""
-    url = f"https://v1.{sport}.api-sports.io/teams/statistics"
-    params = {"league": league_id, "season": season, "team": team_id}
-    try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=20)
-        r.raise_for_status()
-        data = r.json()
-        if not data.get("response"):
-            return {}
-        stats = data["response"]
-        stats["team_id"] = team_id
-        stats["sport"] = sport
-        return stats
-    except Exception:
+        return r.json()
+    except Exception as exc:
+        print(f"❌ Request failed: {url} params={params} -> {exc}")
         return {}
 
 
-def fetch_af_league_stats(league_id: int, season=2025):
-    """
-    For american-football the API does not reliably support /teams/statistics.
-    Instead fetch standings and games for the league and compute per-team aggregates:
-      - wins, losses (when available in standings)
-      - points_for (pf) and points_against (pa) computed from games boxscores when present
-    Returns a pandas DataFrame with columns: team_id, team_name, wins, losses, pf, pa
-    """
-    sport = "american-football"
-    standings_url = f"https://v1.{sport}.api-sports.io/standings"
-    games_url = f"https://v1.{sport}.api-sports.io/games"
+def fetch_teams(sport: str, league_id: int, season=SEASON) -> pd.DataFrame:
+    """Fetch teams list for a league."""
+    url = f"https://v1.{sport}.api-sports.io/teams"
     params = {"league": league_id, "season": season}
-
-    print(f"📊 Fetching AMERICAN-FOOTBALL standings for league={league_id} season={season}...")
-    try:
-        r_st = requests.get(standings_url, headers=HEADERS, params=params, timeout=25)
-        r_st.raise_for_status()
-        st_data = r_st.json().get("response", [])
-    except Exception as e:
-        print(f"⚠️ Standings request failed: {e}")
-        st_data = []
-
-    print(f"📊 Fetching AMERICAN-FOOTBALL games for league={league_id} season={season}...")
-    try:
-        r_g = requests.get(games_url, headers=HEADERS, params=params, timeout=25)
-        r_g.raise_for_status()
-        g_data = r_g.json().get("response", [])
-    except Exception as e:
-        print(f"⚠️ Games request failed: {e}")
-        g_data = []
-
-    team_stats = {}
-
-    # Parse standings entries if available to capture wins/losses and team names/ids
-    for entry in st_data:
-        # many API responses are nested; attempt a few known shapes
-        team = entry.get("team") or entry.get("team", {})
-        team_id = team.get("id") if isinstance(team, dict) else None
-        if not team_id:
-            # try other shapes
-            try:
-                team_id = entry.get("team", {}).get("id")
-            except Exception:
-                team_id = None
-        if not team_id:
+    print(f"📊 Fetching {sport.upper()} teams...")
+    data = _safe_get_json(url, params)
+    resp = data.get("response") or []
+    # Normalize: each item may be {'team': {...}, 'venue': {...}, ...} or simply {...}
+    rows = []
+    for item in resp:
+        if isinstance(item, dict) and "team" in item and isinstance(item["team"], dict):
+            team = item["team"]
+            team_row = {
+                "team_id": team.get("id"),
+                "team_name": team.get("name"),
+                "team_nickname": team.get("name"),
+                "team_city": team.get("city") or team.get("venue", {}).get("city"),
+                "raw": item,
+            }
+        elif isinstance(item, dict):
+            team_row = {
+                "team_id": item.get("id"),
+                "team_name": item.get("name"),
+                "team_nickname": item.get("name"),
+                "team_city": item.get("city"),
+                "raw": item,
+            }
+        else:
             continue
-        team_name = team.get("name") if isinstance(team, dict) else None
-
-        # try common standings shapes for wins/losses
-        wins = None
-        losses = None
-        # shape: entry.get('all', {'win': X, 'lose': Y})
-        all_stats = entry.get("all") or entry.get("records") or {}
-        if isinstance(all_stats, dict):
-            wins = all_stats.get("win") or all_stats.get("wins") or all_stats.get("w")
-            losses = all_stats.get("lose") or all_stats.get("loses") or all_stats.get("loss")
-        # fallback common keys
-        if wins is None:
-            wins = entry.get("wins") or entry.get("win") or (entry.get("points", {}).get("wins") if isinstance(entry.get("points"), dict) else None)
-        if losses is None:
-            losses = entry.get("losses") or entry.get("lose") or entry.get("loss")
-
-        # normalize to ints where possible
-        try:
-            wins = int(wins) if wins is not None else None
-        except Exception:
-            wins = None
-        try:
-            losses = int(losses) if losses is not None else None
-        except Exception:
-            losses = None
-
-        team_stats.setdefault(team_id, {"team_id": team_id, "team_name": team_name, "wins": wins, "losses": losses, "pf": 0, "pa": 0})
-
-    # Use games data to compute points for / against (pf/pa) where boxscore info exists
-    for g in g_data:
-        # common shapes: g['teams']['home']['id'], g['scores']['home']
-        home = g.get("teams", {}).get("home") or {}
-        away = g.get("teams", {}).get("away") or {}
-
-        # Extract scores from common shapes
-        home_score = None
-        away_score = None
-        # try several shapes
-        if "scores" in g and isinstance(g.get("scores"), dict):
-            home_score = g.get("scores", {}).get("home")
-            away_score = g.get("scores", {}).get("away")
-        if home_score is None or away_score is None:
-            # other shape examples
-            sc = g.get("score") or g.get("scores") or {}
-            home_score = home_score or sc.get("fulltime", {}).get("home") if isinstance(sc, dict) else home_score
-            away_score = away_score or sc.get("fulltime", {}).get("away") if isinstance(sc, dict) else away_score
-        # try to coerce to int
-        try:
-            home_score = int(home_score) if home_score is not None else 0
-        except Exception:
-            home_score = 0
-        try:
-            away_score = int(away_score) if away_score is not None else 0
-        except Exception:
-            away_score = 0
-
-        if home and isinstance(home, dict) and home.get("id"):
-            hid = home.get("id")
-            team_stats.setdefault(hid, {"team_id": hid, "team_name": home.get("name"), "wins": None, "losses": None, "pf": 0, "pa": 0})
-            team_stats[hid]["pf"] = team_stats[hid].get("pf", 0) + home_score
-            team_stats[hid]["pa"] = team_stats[hid].get("pa", 0) + away_score
-
-        if away and isinstance(away, dict) and away.get("id"):
-            aid = away.get("id")
-            team_stats.setdefault(aid, {"team_id": aid, "team_name": away.get("name"), "wins": None, "losses": None, "pf": 0, "pa": 0})
-            team_stats[aid]["pf"] = team_stats[aid].get("pf", 0) + away_score
-            team_stats[aid]["pa"] = team_stats[aid].get("pa", 0) + home_score
-
-    # Convert to DataFrame and normalize columns
-    if not team_stats:
-        return pd.DataFrame()
-
-    df = pd.DataFrame.from_records(list(team_stats.values()))
-    # ensure columns exist
-    for col in ["team_id", "team_name", "wins", "losses", "pf", "pa"]:
-        if col not in df.columns:
-            df[col] = None
-    # fill numeric zeros for pf/pa where appropriate
-    df["pf"] = df["pf"].fillna(0).astype(int)
-    df["pa"] = df["pa"].fillna(0).astype(int)
-    # keep meaningful order
-    df = df[["team_id", "team_name", "wins", "losses", "pf", "pa"]]
-    return df
+        rows.append(team_row)
+    return pd.DataFrame(rows)
 
 
-def fetch_league_with_stats(league: str, sport: str, league_id: int, season=2025) -> pd.DataFrame:
-    """Fetch team info and try to enrich with statistics."""
+def fetch_standings(sport: str, league_id: int, season=SEASON) -> dict:
+    """Fetch standings for leagues that support it; return mapping team_id -> stats dict."""
+    url = f"https://v1.{sport}.api-sports.io/standings"
+    params = {"league": league_id, "season": season}
+    print(f"📊 Fetching {sport.upper()} standings for league={league_id} season={season}...")
+    data = _safe_get_json(url, params)
+    resp = data.get("response") or []
+    mapping = {}
+    # API may return a nested structure: list of groups each with 'league' / 'standings' etc.
+    for entry in resp:
+        # If entry is a dict with 'team'
+        if isinstance(entry, dict) and "team" in entry:
+            team = entry.get("team", {})
+            tid = team.get("id")
+            stats = {}
+            # many APIs include 'all' or 'games' or 'points' or 'goals'
+            stats["wins"] = entry.get("points")  # sometimes points used, we'll try multiple fallbacks below
+            # try structured keys
+            all_stats = entry.get("all") or entry.get("games") or {}
+            if isinstance(all_stats, dict):
+                stats["games_played"] = all_stats.get("played") or all_stats.get("played_total") or all_stats.get("matches")
+                stats["wins"] = all_stats.get("win") or all_stats.get("wins") or stats.get("wins")
+                stats["losses"] = all_stats.get("lose") or all_stats.get("loss") or all_stats.get("losses")
+            # goals/points
+            goals = entry.get("goals") or entry.get("points") or {}
+            if isinstance(goals, dict):
+                stats["points_for"] = goals.get("for") or goals.get("for_total") or None
+                stats["points_against"] = goals.get("against") or goals.get("against_total") or None
+            # Some responses wrap standings as lists
+            if tid:
+                mapping[tid] = stats
+        # other possible shape: entry contains 'league' -> 'standings' -> [[{team...}]]
+        elif isinstance(entry, dict) and "league" in entry:
+            league_node = entry.get("league", {})
+            standings = league_node.get("standings") or []
+            # standings may be a list of lists
+            for groups in standings:
+                if isinstance(groups, list):
+                    for s in groups:
+                        team = s.get("team", {})
+                        tid = team.get("id")
+                        stats = {}
+                        all_stats = s.get("all") or {}
+                        if isinstance(all_stats, dict):
+                            stats["games_played"] = all_stats.get("played")
+                            stats["wins"] = all_stats.get("win") or all_stats.get("wins")
+                            stats["losses"] = all_stats.get("lose") or all_stats.get("losses")
+                        goals = s.get("goals") or {}
+                        if isinstance(goals, dict):
+                            stats["points_for"] = goals.get("for")
+                            stats["points_against"] = goals.get("against")
+                        if tid:
+                            mapping[tid] = stats
+    return mapping
+
+
+def fetch_team_statistics_endpoint(sport: str, league_id: int, team_id: int, season=SEASON) -> dict:
+    """Try the /teams/statistics endpoint for a team; return dict or empty."""
+    url = f"https://v1.{sport}.api-sports.io/teams/statistics"
+    params = {"league": league_id, "season": season, "team": team_id}
+    data = _safe_get_json(url, params)
+    # If API says endpoint doesn't exist it may be in data.get("errors")
+    if data.get("errors"):
+        return {}
+    resp = data.get("response")
+    if not resp:
+        return {}
+    # ensure it's a dict
+    if isinstance(resp, dict):
+        # put team_id inside
+        resp["team_id"] = team_id
+        return resp
+    # sometimes response is list
+    if isinstance(resp, list) and resp:
+        first = resp[0]
+        if isinstance(first, dict):
+            first["team_id"] = team_id
+            return first
+    return {}
+
+
+def build_league_stats(league_key: str, sport: str, league_id: int, season=SEASON) -> pd.DataFrame:
+    print(f"🏈 Processing league: {league_key.upper()} ({sport})")
     teams_df = fetch_teams(sport, league_id, season)
     if teams_df.empty:
-        print(f"⚠️ {league.upper()}: No teams found — skipping stats.")
+        print(f"⚠️ {league_key.upper()}: no teams returned.")
         return pd.DataFrame()
 
-    # Special handling for american-football: use standings+games to build stats for whole league
+    results = []
+    # For american-football prefer /standings (avoid /teams/statistics endpoint issues)
+    standings_map = {}
     if sport == "american-football":
-        df_stats = fetch_af_league_stats(league_id, season)
-        if df_stats.empty:
-            print(f"⚠️ {league.upper()}: No AF stats computed; saving team info only.")
-            teams_df.to_csv(os.path.join(DATA_DIR, f"{league}_team_stats.csv"), index=False)
-            return teams_df
+        standings_map = fetch_standings(sport, league_id, season)
 
-        # Merge teams_df (which has more metadata) with df_stats by team id
-        # teams_df may have team id under 'id' or 'team.id'
-        if "id" in teams_df.columns:
-            merge_left = teams_df.rename(columns={"id": "team_id"})
-        elif "team.id" in teams_df.columns:
-            merge_left = teams_df.rename(columns={"team.id": "team_id"})
-        else:
-            merge_left = teams_df.copy()
-            merge_left["team_id"] = merge_left.get("team_id") or None
-
-        merged = pd.merge(merge_left, df_stats, how="left", on="team_id", suffixes=("", "_stats"))
-        # normalize output columns
-        out_cols = {
-            "team_id": "team_id",
-            "team_name": "team_name",
-            "wins": "wins",
-            "losses": "losses",
-            "pf": "points_for",
-            "pa": "points_against",
-        }
-        # if merged does not have team_name, try from teams data
-        if "team_name" not in merged.columns and "name" in merged.columns:
-            merged["team_name"] = merged["name"]
-        # build final df
-        final = pd.DataFrame()
-        final["team_id"] = merged["team_id"]
-        final["team"] = merged.get("team_name") or merged.get("name") or merged.get("team.name")
-        final["league"] = league.upper()
-        final["city"] = merged.get("city") if "city" in merged.columns else None
-        final["games_played"] = None
-        final["wins"] = merged.get("wins")
-        final["losses"] = merged.get("losses")
-        final["points_for"] = merged.get("pf") if "pf" in merged.columns else merged.get("points_for")
-        final["points_against"] = merged.get("pa") if "pa" in merged.columns else merged.get("points_against")
-
-        final.to_csv(os.path.join(DATA_DIR, f"{league}_team_stats.csv"), index=False)
-        print(f"✅ {league.upper()}: {len(final)} teams with stats (AF merged).")
-        return final
-
-    # For other sports: attempt to fetch per-team statistics via /teams/statistics
-    all_stats = []
     for _, row in teams_df.iterrows():
-        tid = row.get("id") or row.get("team.id") or row.get("team.id")
+        tid = row.get("team_id") or row.get("team", {}).get("id") if isinstance(row.get("team"), dict) else None
+        # fallback: sometimes id stored in raw payload
         if not tid:
-            continue
-        stats = fetch_team_stats(sport, league_id, tid, season)
-        if stats:
-            base = {
-                "league": league.upper(),
-                "team_id": tid,
-                "team": row.get("name") or row.get("team.name"),
-                "city": row.get("city") or "",
-            }
-            # Extract key performance metrics if available
-            team_stats = {
-                "games_played": stats.get("games", {}).get("played"),
-                "wins": stats.get("games", {}).get("wins", {}).get("total")
-                if isinstance(stats.get("games", {}).get("wins"), dict)
-                else stats.get("games", {}).get("wins"),
-                "losses": stats.get("games", {}).get("loses", {}).get("total")
-                if isinstance(stats.get("games", {}).get("loses"), dict)
-                else stats.get("games", {}).get("loses"),
-                "points_for": stats.get("points", {}).get("for", {}).get("total")
-                if isinstance(stats.get("points", {}).get("for"), dict)
-                else stats.get("points", {}).get("for"),
-                "points_against": stats.get("points", {}).get("against", {}).get("total")
-                if isinstance(stats.get("points", {}).get("against"), dict)
-                else stats.get("points", {}).get("against"),
-            }
-            all_stats.append({**base, **team_stats})
-        time.sleep(0.5)  # gentle rate-limit
+            raw = row.get("raw") or {}
+            if isinstance(raw, dict):
+                t = raw.get("team") or raw
+                tid = t.get("id")
+        # base info
+        base = {
+            "league": league_key.upper(),
+            "sport": sport,
+            "team_id": int(tid) if tid is not None else None,
+            "team_name": row.get("team_name") or None,
+            "team_city": row.get("team_city") or None,
+        }
 
-    if not all_stats:
-        print(f"⚠️ {league.upper()}: No stats found; saving team info only.")
-        teams_df.to_csv(os.path.join(DATA_DIR, f"{league}_team_stats.csv"), index=False)
-        return teams_df
+        stats = {}
+        # Use standings_map when available
+        if base["team_id"] and standings_map.get(base["team_id"]):
+            stats = standings_map.get(base["team_id"], {})
+        else:
+            # try statistics endpoint for non-football or as fallback
+            if base["team_id"]:
+                stat_resp = fetch_team_statistics_endpoint(sport, league_id, base["team_id"], season)
+                # stat_resp has nested dicts. We try conservative extraction
+                if stat_resp:
+                    # games_played
+                    gp = None
+                    wins = None
+                    losses = None
+                    pf = None
+                    pa = None
+                    # games -> played
+                    games = stat_resp.get("games") or stat_resp.get("games_played") or {}
+                    if isinstance(games, dict):
+                        gp = games.get("played") or games.get("total") or gp
+                        wins = games.get("wins", {}).get("total") if isinstance(games.get("wins"), dict) else games.get("wins") or wins
+                        losses = games.get("loses", {}).get("total") if isinstance(games.get("loses"), dict) else games.get("loses") or losses
+                    # points
+                    points = stat_resp.get("points") or {}
+                    if isinstance(points, dict):
+                        pf = points.get("for", {}).get("total") if isinstance(points.get("for"), dict) else points.get("for") or pf
+                        pa = points.get("against", {}).get("total") if isinstance(points.get("against"), dict) else points.get("against") or pa
+                    # some endpoints return 'wins' at root
+                    wins = wins or stat_resp.get("wins") or stat_resp.get("win")
+                    losses = losses or stat_resp.get("losses") or stat_resp.get("lose")
+                    stats = {
+                        "games_played": gp,
+                        "wins": wins,
+                        "losses": losses,
+                        "points_for": pf,
+                        "points_against": pa,
+                    }
+        # merge base + stats
+        merged = {**base, **(stats or {})}
+        results.append(merged)
+        time.sleep(0.25)  # be kind to API
 
-    df_stats = pd.DataFrame(all_stats)
-    df_stats.to_csv(os.path.join(DATA_DIR, f"{league}_team_stats.csv"), index=False)
-    print(f"✅ {league.upper()}: {len(df_stats)} teams with stats.")
-    return df_stats
+    df = pd.DataFrame(results)
+    out_path = os.path.join(DATA_DIR, f"{league_key}_team_stats.csv")
+    df.to_csv(out_path, index=False)
+    print(f"✅ Saved {league_key.upper()} stats → {out_path} ({len(df)} rows)")
+    return df
 
 
 def main():
     all_dfs = []
-
-    for league, (sport, league_id) in LEAGUES.items():
-        print(f"🏈 Fetching league: {league.upper()} ({sport})")
-        df = fetch_league_with_stats(league, sport, league_id)
-        if not df.empty:
-            all_dfs.append(df)
+    for league_key, (sport, league_id) in LEAGUES.items():
+        try:
+            df = build_league_stats(league_key, sport, league_id, season=SEASON)
+            if df is not None and not df.empty:
+                all_dfs.append(df)
+        except Exception as e:
+            print(f"❌ Error processing {league_key.upper()}: {e}")
 
     if not all_dfs:
-        print("⚠️ No leagues returned data. Nothing to merge.")
+        print("⚠️ No leagues produced data. Exiting.")
         return
 
-    combined = pd.concat(all_dfs, ignore_index=True)
-    out_path = os.path.join(DATA_DIR, "team_stats_latest.csv")
-    combined.to_csv(out_path, index=False)
-    print(f"\n🎉 Combined {len(combined)} total teams across {len(all_dfs)} leagues")
-    print(f"✅ Saved merged file → {out_path}")
-    print(f"🕒 Completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    combined = pd.concat(all_dfs, ignore_index=True, sort=False)
+    out = os.path.join(DATA_DIR, "team_stats_latest.csv")
+    combined.to_csv(out, index=False)
+    print(f"\n🎉 Combined {len(combined)} rows across {len(all_dfs)} leagues")
+    print(f"✅ Saved merged file → {out}")
+    print(f"🕒 Completed at {datetime.utcnow().isoformat()}Z")
 
 
 if __name__ == "__main__":
