@@ -1,16 +1,18 @@
-cat > render.yaml <<'EOF'
 services:
+  # Web UI (Flask)
   - type: web
-    name: lockbox-auto
+    name: lockbox-web
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt && python predictor_auto.py"
+    buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn lockbox_web:app --bind 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: OUTPUT_DIR
         value: /opt/render/project/src/Output
+      - key: PRIMARY_FILE
+        value: ""
       - key: LOCK_EDGE_THRESHOLD
         value: "0.5"
       - key: LOCK_CONFIDENCE_THRESHOLD
@@ -18,8 +20,9 @@ services:
       - key: UPSET_EDGE_THRESHOLD
         value: "0.3"
 
+  # Worker (daily generator)
   - type: worker
-    name: lockbox-auto-worker
+    name: lockbox-generator
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
@@ -29,10 +32,5 @@ services:
         value: 3.11.9
       - key: OUTPUT_DIR
         value: /opt/render/project/src/Output
-      - key: LOCK_EDGE_THRESHOLD
-        value: "0.5"
-      - key: LOCK_CONFIDENCE_THRESHOLD
-        value: "75.0"
-      - key: UPSET_EDGE_THRESHOLD
-        value: "0.3"
-EOF
+      - key: ODDS_API_KEY
+        sync: false  # <-- set in Render dashboard
