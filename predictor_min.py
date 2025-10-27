@@ -1,124 +1,126 @@
-# predictor_min.py — LockBox Pro (3-day lookahead edition)
-import os, sys, time, json, datetime
-import pandas as pd
-import numpy as np
-import requests
+#!/usr/bin/env python3
+"""
+LockBox Pro – Learning Predictor
+Auto-grades past picks and adjusts edge/confidence by sport performance.
+"""
+
+import os, pandas as pd, requests, datetime as dt, numpy as np, json
 
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
-API_KEY = os.getenv("ODDS_API_KEY", "")
-BASE_URL = "https://api.the-odds-api.com/v4/sports"
-
-# how many days ahead to include
-LOOKAHEAD_DAYS = int(os.getenv("LOOKAHEAD_DAYS", "3"))
-
-# helper to safely create folders
+ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def fetch_events(sport_key):
-    """Fetch upcoming events for a given sport."""
-    params = {
-        "apiKey": API_KEY,
-        "regions": "us",
-        "markets": "h2h,spreads,totals",
-        "oddsFormat": "american"
-    }
-    url = f"{BASE_URL}/{sport_key}/odds"
+HISTORY_FILE = os.path.join(OUTPUT_DIR, "history.csv")
+PRED_FILE = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
+
+# --- helper ---
+def log(msg): print(f"{dt.datetime.utcnow().isoformat()}Z  {msg}", flush=True)
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        return pd.read_csv(HISTORY_FILE)
+    return pd.DataFrame(columns=["Date","Sport","Game","BetType","Pick","Result","Edge","Confidence"])
+
+def fetch_recent_results(sport_key):
+    """pull completed games from The Odds API"""
+    url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/?daysFrom=3&apiKey={ODDS_API_KEY}"
     try:
-        r = requests.get(url, params=params, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        events = []
-        cutoff = datetime.datetime.utcnow() + datetime.timedelta(days=LOOKAHEAD_DAYS)
-        for ev in data:
-            start = datetime.datetime.fromisoformat(ev["commence_time"].replace("Z",""))
-            if start > cutoff:
-                continue
-            events.append(ev)
-        print(f"📊 Retrieved {len(events)} events for {sport_key}")
-        return events
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200: return []
+        return r.json()
     except Exception as e:
-        print(f"⚠️ Error fetching {sport_key}: {e}")
+        log(f"fetch_recent_results error {sport_key}: {e}")
         return []
 
-def implied_prob_from_odds(odds):
-    """Convert American odds to implied probability."""
-    try:
-        o = float(odds)
-        if o > 0: return 100 / (o + 100)
-        else: return abs(o) / (abs(o) + 100)
-    except: return np.nan
+def grade_pick(row, results):
+    """mark pick as WIN/LOSS if result available"""
+    for g in results:
+        h, a = (g.get("home_team",""), g.get("away_team",""))
+        if not g.get("completed"): continue
+        if row["Team1"] in (h,a) and row["Team2"] in (h,a):
+            scores = g.get("scores", [])
+            if len(scores)==2:
+                home, away = scores[0]["score"], scores[1]["score"]
+                win = h if home>away else a
+                return "WIN" if row["MoneylinePick"].startswith(win) else "LOSS"
+    return np.nan
 
-def analyze_event(ev):
-    """Simple model stub — estimate which team covers."""
-    try:
-        sport = ev.get("sport_key","")
-        teams = ev.get("teams",[])
-        if len(teams) < 2: return None
-        home_team = ev.get("home_team", teams[-1])
-        away_team = [t for t in teams if t != home_team][0]
-        markets = ev.get("bookmakers",[])
-        if not markets: return None
-        odds_data = markets[0].get("markets", [])
-        moneyline = next((m for m in odds_data if m["key"]=="h2h"), None)
-        spreads = next((m for m in odds_data if m["key"]=="spreads"), None)
-        totals = next((m for m in odds_data if m["key"]=="totals"), None)
+def weighted_adjustment(hist):
+    """compute recent accuracy weight by sport"""
+    if hist.empty: return {}
+    adj = {}
+    recent = hist[hist["Result"].isin(["WIN","LOSS"])].tail(200)
+    for s, g in recent.groupby("Sport"):
+        wins = (g["Result"]=="WIN").sum()
+        tot = len(g)
+        adj[s] = round(wins/tot,3) if tot>0 else 1.0
+    return adj
 
-        pick, edge, conf = "No Pick", 0.0, 50.0
-        if moneyline and len(moneyline["outcomes"])==2:
-            o1,o2 = moneyline["outcomes"]
-            p1 = implied_prob_from_odds(o1["price"])
-            p2 = implied_prob_from_odds(o2["price"])
-            pick = o1["name"] if p1>p2 else o2["name"]
-            edge = round(abs(p1-p2)*100,2)
-            conf = round(max(p1,p2)*100,2)
-
-        reason = f"Auto pick based on ML odds difference ({edge:.2f} edge)"
-        return {
-            "Sport": sport,
-            "GameTime": ev["commence_time"],
-            "Team1": away_team,
-            "Team2": home_team,
-            "MoneylinePick": pick,
-            "Confidence": conf,
-            "Edge": edge,
-            "ML": f"{away_team}:{moneyline['outcomes'][0]['price']} | {home_team}:{moneyline['outcomes'][1]['price']}" if moneyline else "",
-            "ATS": spreads["key"] if spreads else "",
-            "OU": totals["key"] if totals else "",
-            "Reason": reason,
-            "LockEmoji": "🔒" if edge>=0.5 and conf>=75 else "",
-            "UpsetEmoji": "💥" if edge>=0.3 and pick==away_team else "",
-        }
-    except Exception as e:
-        print(f"⚠️ Error analyzing event: {e}")
-        return None
-
+# --- main ---
 def main():
-    all_sports = [
-        "americanfootball_nfl",
-        "americanfootball_ncaaf",
-        "basketball_nba",
-        "icehockey_nhl",
-        "baseball_mlb",
-    ]
-    all_rows=[]
-    for s in all_sports:
-        events = fetch_events(s)
-        for ev in events:
-            row = analyze_event(ev)
-            if row: all_rows.append(row)
+    log("🧠 LockBox Learning cycle start")
 
-    if not all_rows:
-        print("⚠️ No valid games found in next few days — writing empty file.")
-    df = pd.DataFrame(all_rows)
-    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-    latest_path = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
-    dated_path  = os.path.join(OUTPUT_DIR, f"Predictions_{timestamp}_Explained.csv")
+    # load latest predictions
+    if not os.path.exists(PRED_FILE):
+        log("no predictions file found")
+        return
+    df = pd.read_csv(PRED_FILE)
+    if df.empty:
+        log("no rows in predictions")
+        return
 
-    df.to_csv(latest_path, index=False)
-    df.to_csv(dated_path, index=False)
+    hist = load_history()
+    all_results = {
+        "americanfootball_nfl": fetch_recent_results("americanfootball_nfl"),
+        "americanfootball_ncaaf": fetch_recent_results("americanfootball_ncaaf"),
+        "basketball_nba": fetch_recent_results("basketball_nba"),
+        "icehockey_nhl": fetch_recent_results("icehockey_nhl"),
+        "baseball_mlb": fetch_recent_results("baseball_mlb"),
+    }
 
-    print(f"✅ Wrote {len(df)} rows to {dated_path}")
-    print(f"✅ Updated {latest_path}")
+    graded_rows = []
+    for _, r in df.iterrows():
+        res = grade_pick(r, all_results.get(r.get("Sport_raw",""), []))
+        if isinstance(res,str):
+            graded_rows.append({
+                "Date": dt.datetime.utcnow().date(),
+                "Sport": r.get("Sport",""),
+                "Game": f"{r.get('Team1')} vs {r.get('Team2')}",
+                "BetType": "ATS",
+                "Pick": r.get("MoneylinePick",""),
+                "Result": res,
+                "Edge": r.get("Edge",0),
+                "Confidence": r.get("Confidence",0)
+            })
+
+    if graded_rows:
+        new = pd.DataFrame(graded_rows)
+        hist = pd.concat([hist,new], ignore_index=True)
+        hist.to_csv(HISTORY_FILE,index=False)
+        log(f"✅ Appended {len(new)} results to history")
+    else:
+        log("No new graded results")
+
+    # adjust scaling weights
+    adj = weighted_adjustment(hist)
+    log(f"Performance weights: {adj}")
+
+    # apply slight learning bias
+    if adj:
+        for i, r in df.iterrows():
+            sport = r.get("Sport","")
+            if sport in adj:
+                w = adj[sport]
+                df.at[i,"Edge"] = r["Edge"] * (0.9 + 0.2*w)
+                df.at[i,"Confidence"] = min(100, r["Confidence"] * (0.9 + 0.2*w))
+
+    # save adjusted predictions
+    date_str = dt.datetime.utcnow().strftime("%Y-%m-%d")
+    out_path = os.path.join(OUTPUT_DIR, f"Predictions_{date_str}_Explained.csv")
+    df.to_csv(out_path, index=False)
+    df.to_csv(PRED_FILE, index=False)
+    log(f"✅ Updated {PRED_FILE} with {len(df)} rows")
+    log("🚀 Learning cycle complete")
 
 if __name__ == "__main__":
     main()
