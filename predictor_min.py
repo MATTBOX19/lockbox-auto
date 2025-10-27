@@ -14,29 +14,39 @@ HISTORY_FILE = os.path.join(OUTPUT_DIR, "history.csv")
 PRED_FILE = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
 
 # --- helper ---
-def log(msg): print(f"{dt.datetime.utcnow().isoformat()}Z  {msg}", flush=True)
+def log(msg):
+    print(f"{dt.datetime.utcnow().isoformat()}Z  {msg}", flush=True)
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        return pd.read_csv(HISTORY_FILE)
+        try:
+            df = pd.read_csv(HISTORY_FILE)
+            if "Result" not in df.columns:
+                df["Result"] = ""
+            return df
+        except Exception as e:
+            log(f"⚠️ Error reading history: {e}")
     return pd.DataFrame(columns=["Date","Sport","Game","BetType","Pick","Result","Edge","Confidence"])
 
 def fetch_recent_results(sport_key):
-    """pull completed games from The Odds API"""
+    """Pull completed games from The Odds API"""
     url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/?daysFrom=3&apiKey={ODDS_API_KEY}"
     try:
         r = requests.get(url, timeout=10)
-        if r.status_code != 200: return []
+        if r.status_code != 200:
+            log(f"⚠️ Bad response for {sport_key}: {r.status_code}")
+            return []
         return r.json()
     except Exception as e:
         log(f"fetch_recent_results error {sport_key}: {e}")
         return []
 
 def grade_pick(row, results):
-    """mark pick as WIN/LOSS if result available"""
+    """Mark pick as WIN/LOSS if result available"""
     for g in results:
         h, a = (g.get("home_team",""), g.get("away_team",""))
-        if not g.get("completed"): continue
+        if not g.get("completed"):
+            continue
         if row["Team1"] in (h,a) and row["Team2"] in (h,a):
             scores = g.get("scores", [])
             if len(scores)==2:
@@ -46,31 +56,40 @@ def grade_pick(row, results):
     return np.nan
 
 def weighted_adjustment(hist):
-    # if no Result column yet, skip safely
+    """Adjust learning weights safely — skip if no results yet."""
+    if hist is None or hist.empty:
+        print("⚠️ No history data available — skipping weighted adjustment.")
+        return {}
+
     if "Result" not in hist.columns:
-        print("⚠️ No 'Result' column found — skipping weighted adjustment (first run)")
-        return hist
+        print("⚠️ No 'Result' column found — first run detected, skipping adjustment.")
+        return {}
 
-    recent = hist[hist["Result"].isin(["WIN","LOSS"])].tail(200)
+    recent = hist[hist["Result"].isin(["WIN", "LOSS"])].tail(200)
     if recent.empty:
-        print("⚠️ No graded results yet — skipping adjustment")
-        return hist
+        print("⚠️ No graded results yet — skipping adjustment.")
+        return {}
 
-    # continue your normal logic below
-    # (whatever weights or averages you calculate)
-    return hist
+    try:
+        sport_perf = recent.groupby("Sport")["Result"].apply(lambda x: (x == "WIN").mean())
+        weights = sport_perf.to_dict()
+        print("🧠 Adaptive sport performance:", weights)
+        return weights
+    except Exception as e:
+        print(f"⚠️ Weighted adjustment skipped due to error: {e}")
+        return {}
 
 # --- main ---
 def main():
     log("🧠 LockBox Learning cycle start")
 
-    # load latest predictions
+    # Load latest predictions
     if not os.path.exists(PRED_FILE):
-        log("no predictions file found")
+        log("❌ No predictions file found.")
         return
     df = pd.read_csv(PRED_FILE)
     if df.empty:
-        log("no rows in predictions")
+        log("❌ No rows in predictions.")
         return
 
     hist = load_history()
@@ -85,7 +104,7 @@ def main():
     graded_rows = []
     for _, r in df.iterrows():
         res = grade_pick(r, all_results.get(r.get("Sport_raw",""), []))
-        if isinstance(res,str):
+        if isinstance(res, str):
             graded_rows.append({
                 "Date": dt.datetime.utcnow().date(),
                 "Sport": r.get("Sport",""),
@@ -99,17 +118,17 @@ def main():
 
     if graded_rows:
         new = pd.DataFrame(graded_rows)
-        hist = pd.concat([hist,new], ignore_index=True)
-        hist.to_csv(HISTORY_FILE,index=False)
+        hist = pd.concat([hist, new], ignore_index=True)
+        hist.to_csv(HISTORY_FILE, index=False)
         log(f"✅ Appended {len(new)} results to history")
     else:
-        log("No new graded results")
+        log("ℹ️ No new graded results (first cycle likely)")
 
-    # adjust scaling weights
+    # Adjust scaling weights
     adj = weighted_adjustment(hist)
     log(f"Performance weights: {adj}")
 
-    # apply slight learning bias
+    # Apply slight learning bias if available
     if adj:
         for i, r in df.iterrows():
             sport = r.get("Sport","")
@@ -118,7 +137,7 @@ def main():
                 df.at[i,"Edge"] = r["Edge"] * (0.9 + 0.2*w)
                 df.at[i,"Confidence"] = min(100, r["Confidence"] * (0.9 + 0.2*w))
 
-    # save adjusted predictions
+    # Save adjusted predictions
     date_str = dt.datetime.utcnow().strftime("%Y-%m-%d")
     out_path = os.path.join(OUTPUT_DIR, f"Predictions_{date_str}_Explained.csv")
     df.to_csv(out_path, index=False)
