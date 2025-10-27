@@ -1,4 +1,8 @@
-# lockbox_web.py — LockBox Pro (API-enabled, cleaner version)
+#!/usr/bin/env python3
+"""
+LockBox Pro Web — Learning Dashboard Edition
+Displays live picks + historical performance from history.csv
+"""
 from flask import Flask, render_template_string, jsonify, request
 import pandas as pd, os, glob, re
 from collections import defaultdict
@@ -8,146 +12,115 @@ app = Flask(__name__)
 
 # === Config ===
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
-PRIMARY_FILE = os.getenv("PRIMARY_FILE", "")
 FALLBACK_FILE = os.path.join(OUTPUT_DIR, "Predictions_test.csv")
 LATEST_NAME = "Predictions_latest_Explained.csv"
 
-# Thresholds
-try:
-    LOCK_EDGE_THRESHOLD = float(os.getenv("LOCK_EDGE_THRESHOLD", "0.5"))
-    LOCK_CONFIDENCE_THRESHOLD = float(os.getenv("LOCK_CONFIDENCE_THRESHOLD", "75.0"))
-    UPSET_EDGE_THRESHOLD = float(os.getenv("UPSET_EDGE_THRESHOLD", "0.3"))
-except Exception:
-    LOCK_EDGE_THRESHOLD = 0.5
-    LOCK_CONFIDENCE_THRESHOLD = 75.0
-    UPSET_EDGE_THRESHOLD = 0.3
+def log(msg): print(msg, flush=True)
 
-
-# === Utility ===
+# === Performance Utility ===
 def compute_sport_performance():
-    """Reads Output/history.csv and returns win/loss by Sport and BetType (ML/ATS/OU)."""
+    """Read Output/history.csv and summarize win/loss % by sport."""
     path = os.path.join(OUTPUT_DIR, "history.csv")
-    if not os.path.exists(path):
-        return "No performance data yet."
+    if not os.path.exists(path): return []
     try:
         df = pd.read_csv(path)
     except Exception:
-        return "No performance data yet."
-    if df.empty:
-        return "No graded bets yet."
+        return []
+    if df.empty: return []
 
-    perf = defaultdict(lambda: {"ML": [0, 0], "ATS": [0, 0], "OU": [0, 0]})
-    for _, row in df.iterrows():
-        sport = str(row.get("Sport", "")).strip().upper()
-        bet = str(row.get("BetType", "")).strip().upper()
-        res = str(row.get("Result", "")).strip().upper()
-        if sport and bet in ["ML", "ATS", "OU"]:
-            if res == "WIN":
-                perf[sport][bet][0] += 1
-            elif res == "LOSS":
-                perf[sport][bet][1] += 1
+    recent = df.tail(250)
+    perf = defaultdict(lambda: {"W":0,"L":0})
+    for _,r in recent.iterrows():
+        sport=str(r.get("Sport","")).upper()
+        res=str(r.get("Result","")).upper()
+        if sport and res in ["WIN","LOSS"]:
+            if res=="WIN": perf[sport]["W"]+=1
+            else: perf[sport]["L"]+=1
 
-    emoji = {"NFL": "🏈", "CFB": "🎓", "NBA": "🏀", "MLB": "⚾", "NHL": "🏒"}
-    out = []
-    for sport, bets in perf.items():
-        segs = []
-        for b in ["ML", "ATS", "OU"]:
-            w, l = bets[b]
-            t = w + l
-            if t > 0:
-                pct = round(100 * w / t, 1)
-                segs.append(f"{b}: {w}-{l} ({pct}%)")
-        emoji_s = emoji.get(sport, "🎯")
-        out.append(f"{emoji_s} {sport} — {' | '.join(segs)}")
-    return " | ".join(out) if out else "No recent results yet."
+    data=[]
+    for s,v in perf.items():
+        total=v["W"]+v["L"]
+        if total==0: continue
+        pct=round(100*v["W"]/total,1)
+        data.append({"sport":s,"wins":v["W"],"losses":v["L"],"pct":pct})
+    data.sort(key=lambda x:-x["pct"])
+    return data
 
+def perf_html():
+    data=compute_sport_performance()
+    if not data: return "No performance data yet."
+    html=["<div style='display:flex;flex-wrap:wrap;justify-content:center;gap:10px;'>"]
+    emoji={"NFL":"🏈","CFB":"🎓","NBA":"🏀","MLB":"⚾","NHL":"🏒"}
+    for row in data:
+        e=emoji.get(row["sport"],"🎯")
+        bar=f"<div style='width:{row['pct']}%;background:#238636;height:6px;border-radius:3px;'></div>"
+        html.append(
+            f"<div style='padding:6px 10px;background:#161b22;border:1px solid #30363d;border-radius:8px;text-align:center;min-width:100px;'>"
+            f"<b>{e} {row['sport']}</b><br>"
+            f"<small>{row['wins']}-{row['losses']} ({row['pct']}%)</small>"
+            f"{bar}</div>"
+        )
+    html.append("</div>")
+    return "".join(html)
 
+# === Prediction Utils ===
 def find_latest_file():
-    """Locate the most recent predictions file."""
-    latest = os.path.join(OUTPUT_DIR, LATEST_NAME)
-    if os.path.exists(latest):
-        return latest
-    files = sorted(
-        glob.glob(os.path.join(OUTPUT_DIR, "Predictions_*_Explained.csv")),
-        key=os.path.getmtime,
-        reverse=True,
-    )
+    latest=os.path.join(OUTPUT_DIR,LATEST_NAME)
+    if os.path.exists(latest): return latest
+    files=glob.glob(os.path.join(OUTPUT_DIR,"Predictions_*_Explained.csv"))
     if files:
+        files.sort(key=os.path.getmtime,reverse=True)
         return files[0]
-    if os.path.exists(FALLBACK_FILE):
-        return FALLBACK_FILE
+    if os.path.exists(FALLBACK_FILE): return FALLBACK_FILE
     return None
 
-
-def parse_teams_from_ml(ml_value):
-    """Extract team names from ML field like 'TeamA:-150 | TeamB:+130'."""
+def parse_teams_from_ml(val):
     try:
-        parts = str(ml_value).split("|")
-        if len(parts) >= 2:
-            t1 = parts[0].split(":")[0].strip()
-            t2 = parts[1].split(":")[0].strip()
-            return t1, t2
-    except Exception:
-        pass
-    return None, None
-
+        parts=str(val).split("|")
+        if len(parts)>=2:
+            t1=parts[0].split(":")[0].strip()
+            t2=parts[1].split(":")[0].strip()
+            return t1,t2
+    except: pass
+    return None,None
 
 def load_predictions():
-    """Load and normalize predictions CSV."""
-    path = find_latest_file()
-    if not path:
-        return pd.DataFrame(), "NO_FILE"
-
-    try:
-        df = pd.read_csv(path)
+    path=find_latest_file()
+    if not path: return pd.DataFrame(), "NO_FILE"
+    try: df=pd.read_csv(path)
     except Exception as e:
-        print("⚠️ Could not read predictions CSV:", e)
+        log(f"⚠️ could not read {path}: {e}")
         return pd.DataFrame(), "READ_ERROR"
 
-    df.columns = [c.strip() for c in df.columns]
+    df.columns=[c.strip() for c in df.columns]
     if "Confidence(%)" in df.columns and "Confidence" not in df.columns:
-        df.rename(columns={"Confidence(%)": "Confidence"}, inplace=True)
+        df.rename(columns={"Confidence(%)":"Confidence"},inplace=True)
     if "MoneylinePick" not in df.columns and "BestPick" in df.columns:
-        df["MoneylinePick"] = df["BestPick"]
+        df["MoneylinePick"]=df["BestPick"]
 
     # fill missing team names
-    if "Team1" not in df.columns:
-        df["Team1"] = ""
-    if "Team2" not in df.columns:
-        df["Team2"] = ""
+    if "Team1" not in df.columns: df["Team1"]=""
+    if "Team2" not in df.columns: df["Team2"]=""
     if "ML" in df.columns:
-        mask = (df["Team1"].astype(str).str.strip() == "") | (
-            df["Team2"].astype(str).str.strip() == ""
-        )
+        mask=(df["Team1"].str.strip()=="")|(df["Team2"].str.strip()=="")
         for i in df[mask].index:
-            t1, t2 = parse_teams_from_ml(df.at[i, "ML"])
-            df.at[i, "Team1"] = t1 or ""
-            df.at[i, "Team2"] = t2 or ""
+            t1,t2=parse_teams_from_ml(df.at[i,"ML"])
+            df.at[i,"Team1"]=t1 or ""
+            df.at[i,"Team2"]=t2 or ""
 
-    # normalize types
-    df["Edge"] = pd.to_numeric(df.get("Edge", 0), errors="coerce").fillna(0.0)
-    df["Confidence"] = pd.to_numeric(
-        df.get("Confidence", 0), errors="coerce"
-    ).fillna(0.0)
-    df["EdgeDisplay"] = df["Edge"].round(3).astype(str)
+    df["Edge"]=pd.to_numeric(df.get("Edge",0),errors="coerce").fillna(0.0)
+    df["Confidence"]=pd.to_numeric(df.get("Confidence",0),errors="coerce").fillna(0.0)
+    df["EdgeDisplay"]=df["Edge"].round(3).astype(str)
 
-    # fill emojis & normalize sport
-    df["LockEmoji"] = df.get("LockEmoji", "")
-    df["UpsetEmoji"] = df.get("UpsetEmoji", "")
-    df["Sport_raw"] = df.get("Sport", "").astype(str)
-    df["Sport"] = df["Sport_raw"].replace(
-        {
-            "americanfootball_nfl": "NFL",
-            "americanfootball_ncaaf": "CFB",
-            "basketball_nba": "NBA",
-            "baseball_mlb": "MLB",
-            "icehockey_nhl": "NHL",
-        }
-    )
-    return df, os.path.basename(path)
+    df["LockEmoji"]=df.get("LockEmoji","")
+    df["UpsetEmoji"]=df.get("UpsetEmoji","")
+    df["Sport_raw"]=df.get("Sport","").astype(str)
+    df["Sport"]=df["Sport_raw"].replace({
+        "americanfootball_nfl":"NFL","americanfootball_ncaaf":"CFB",
+        "basketball_nba":"NBA","baseball_mlb":"MLB","icehockey_nhl":"NHL"})
+    return df,os.path.basename(path)
 
-
-# === HTML Template ===
+# === Template ===
 TEMPLATE = """
 <!doctype html>
 <html>
@@ -172,7 +145,7 @@ select{background:#161b22;color:#c9d1d9;border:1px solid #30363d;padding:6px 10p
 </style>
 </head>
 <body>
-<div class="perfbar">{{ perf_summary }}</div>
+<div class="perfbar">{{ perf_html|safe }}</div>
 <h1>🔥 LockBox AI Picks 🔒</h1>
 <div class="updated">Updated: {{ updated }}</div>
 
@@ -226,32 +199,19 @@ function updateFilters(){
 # === Routes ===
 @app.route("/")
 def index():
-    sport = request.args.get("sport", "All")
-    top5 = request.args.get("top5", "All")
+    sport=request.args.get("sport","All")
+    top5=request.args.get("top5","All")
 
-    df, filename = load_predictions()
-    if df.empty:
-        msg = "No predictions available yet."
-        return render_template_string(
-            TEMPLATE,
-            data=[],
-            updated=msg,
-            sports=[],
-            sport=sport,
-            top5=top5,
-            footer_text=msg,
-            perf_summary=compute_sport_performance(),
-        )
+    df,filename=load_predictions()
+    sports=sorted(df["Sport"].dropna().unique()) if not df.empty else []
 
-    sports = sorted(df["Sport"].dropna().unique())
-    if sport != "All":
-        df = df[df["Sport"] == sport]
-    if top5 == "1":
-        df["Score"] = df["Edge"] * df["Confidence"]
-        df = df.sort_values("Score", ascending=False).head(5)
+    if not df.empty:
+        if sport!="All": df=df[df["Sport"]==sport]
+        if top5=="1":
+            df["Score"]=df["Edge"]*df["Confidence"]
+            df=df.sort_values("Score",ascending=False).head(5)
 
-    footer = f"Showing {len(df)} picks from {filename}"
-    perf = compute_sport_performance()
+    footer=f"Showing {len(df)} picks from {filename}"
     return render_template_string(
         TEMPLATE,
         data=df.to_dict(orient="records"),
@@ -260,38 +220,26 @@ def index():
         sport=sport,
         top5=top5,
         footer_text=footer,
-        perf_summary=perf,
+        perf_html=perf_html(),
     )
-
 
 @app.route("/api/status")
 def api_status():
-    """Health check."""
-    df, filename = load_predictions()
-    return jsonify(
-        {
-            "status": "ok",
-            "records": len(df),
-            "file": filename,
-            "last_updated": datetime.utcnow().isoformat() + "Z",
-        }
-    )
-
+    df,filename=load_predictions()
+    return jsonify({
+        "status":"ok",
+        "records":len(df),
+        "file":filename,
+        "last_updated":datetime.utcnow().isoformat()+"Z",
+        "performance":compute_sport_performance()
+    })
 
 @app.route("/api/picks")
 def api_picks():
-    """Return all picks in JSON form."""
-    df, filename = load_predictions()
+    df,filename=load_predictions()
     if df.empty:
-        return jsonify({"message": "no picks yet", "records": 0, "file": filename})
-    return jsonify(
-        {
-            "records": len(df),
-            "file": filename,
-            "picks": df.to_dict(orient="records"),
-        }
-    )
+        return jsonify({"message":"no picks yet","records":0,"file":filename})
+    return jsonify({"records":len(df),"file":filename,"picks":df.to_dict(orient="records")})
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=10000)
