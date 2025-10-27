@@ -1,148 +1,124 @@
-#!/usr/bin/env python3
-"""
-predictor_min.py — minimal, reliable generator for LockBox.
-- Pulls odds (ML, spreads, totals) from The Odds API
-- Produces Output/Predictions_latest_Explained.csv
-- No heavy modeling (fast start); computes a simple pick + confidence + edge
-"""
-import os, json, time, math, requests, pandas as pd
-from pathlib import Path
-from datetime import datetime, timezone
+# predictor_min.py — LockBox Pro (3-day lookahead edition)
+import os, sys, time, json, datetime
+import pandas as pd
+import numpy as np
+import requests
 
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
-REGION = "us"
-MARKETS = "h2h,spreads,totals"
-SPORTS = [
-    "americanfootball_nfl",
-    "americanfootball_ncaaf",
-    "basketball_nba",
-    "icehockey_nhl",
-    "baseball_mlb",
-]
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
+API_KEY = os.getenv("ODDS_API_KEY", "")
+BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
-ROOT = Path(".")
-OUT_DIR = Path(os.getenv("OUTPUT_DIR", ROOT / "Output"))
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-LATEST = OUT_DIR / "Predictions_latest_Explained.csv"
+# how many days ahead to include
+LOOKAHEAD_DAYS = int(os.getenv("LOOKAHEAD_DAYS", "3"))
 
-def implied_prob(odds_american: int) -> float:
-    o = int(odds_american)
-    if o > 0:  # +150
-        return 100.0 / (o + 100.0)
-    else:     # -150
-        return (-o) / ((-o) + 100.0)
+# helper to safely create folders
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def fair_prob(p1, p2):
-    s = p1 + p2
-    return (p1/s, p2/s) if s > 0 else (0.5, 0.5)
-
-def fetch_events(sport):
-    url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
-    params = {"regions": REGION, "markets": MARKETS, "oddsFormat": "american", "apiKey": ODDS_API_KEY}
-    r = requests.get(url, params=params, timeout=20)
-    r.raise_for_status()
-    return r.json()
-
-def best_price(prices):
-    # Pick one book’s odds. For simplicity: best ML, best spread (home/away), best total.
-    # prices is a list of bookmaker dicts.
-    best = {"ml": {}, "spread": {}, "total": {}}
-    for b in prices:
-        for mk in b.get("markets", []):
-            key = mk.get("key")
-            for o in mk.get("outcomes", []):
-                name = o.get("name","")
-                price = o.get("price")
-                if price is None: continue
-                if key == "h2h":
-                    if name not in best["ml"] or abs(price) > abs(best["ml"][name]):
-                        best["ml"][name] = int(price)
-                elif key == "spreads":
-                    pt = o.get("point")
-                    cur = best["spread"].get(name)
-                    if cur is None or abs(price) > abs(cur["price"]):
-                        best["spread"][name] = {"price": int(price), "point": float(pt)}
-                elif key == "totals":
-                    pt = o.get("point")
-                    cur = best["total"].get(name)
-                    if cur is None or abs(price) > abs(cur["price"]):
-                        best["total"][name] = {"price": int(price), "point": float(pt)}
-    return best
-
-rows = []
-for sport in SPORTS:
+def fetch_events(sport_key):
+    """Fetch upcoming events for a given sport."""
+    params = {
+        "apiKey": API_KEY,
+        "regions": "us",
+        "markets": "h2h,spreads,totals",
+        "oddsFormat": "american"
+    }
+    url = f"{BASE_URL}/{sport_key}/odds"
     try:
-        data = fetch_events(sport)
+        r = requests.get(url, params=params, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        events = []
+        cutoff = datetime.datetime.utcnow() + datetime.timedelta(days=LOOKAHEAD_DAYS)
+        for ev in data:
+            start = datetime.datetime.fromisoformat(ev["commence_time"].replace("Z",""))
+            if start > cutoff:
+                continue
+            events.append(ev)
+        print(f"📊 Retrieved {len(events)} events for {sport_key}")
+        return events
     except Exception as e:
-        print(f"⚠️ {sport} fetch failed: {e}")
-        continue
+        print(f"⚠️ Error fetching {sport_key}: {e}")
+        return []
 
-    for ev in data:
-        teams = ev.get("teams") or []
-        if len(teams) != 2:
-            continue
-        team1, team2 = teams[0], teams[1]
-        commence = ev.get("commence_time","")
-        prices = best_price(ev.get("bookmakers", []))
+def implied_prob_from_odds(odds):
+    """Convert American odds to implied probability."""
+    try:
+        o = float(odds)
+        if o > 0: return 100 / (o + 100)
+        else: return abs(o) / (abs(o) + 100)
+    except: return np.nan
 
-        # Moneyline pick
-        ml1 = prices["ml"].get(team1); ml2 = prices["ml"].get(team2)
-        ml_text = ""
-        if ml1 is not None and ml2 is not None:
-            p1 = implied_prob(ml1); p2 = implied_prob(ml2)
-            p1, p2 = fair_prob(p1, p2)
-            pick_ml = team1 if p1 >= p2 else team2
-            conf_ml = round(100.0 * max(p1, p2), 1)
-            edge_ml = round(abs(p1 - 0.5), 3)  # simple edge vs coinflip
-            ml_text = f"{team1}:{ml1} | {team2}:{ml2}"
-        else:
-            pick_ml, conf_ml, edge_ml = ("", 0.0, 0.0)
+def analyze_event(ev):
+    """Simple model stub — estimate which team covers."""
+    try:
+        sport = ev.get("sport_key","")
+        teams = ev.get("teams",[])
+        if len(teams) < 2: return None
+        home_team = ev.get("home_team", teams[-1])
+        away_team = [t for t in teams if t != home_team][0]
+        markets = ev.get("bookmakers",[])
+        if not markets: return None
+        odds_data = markets[0].get("markets", [])
+        moneyline = next((m for m in odds_data if m["key"]=="h2h"), None)
+        spreads = next((m for m in odds_data if m["key"]=="spreads"), None)
+        totals = next((m for m in odds_data if m["key"]=="totals"), None)
 
-        # ATS (pick team with line advantage if spreads exist)
-        ats_text = ""
-        s1 = prices["spread"].get(team1); s2 = prices["spread"].get(team2)
-        if s1 and s2:
-            # crude approach: prefer side with shorter price at same (or better) point
-            # if line points differ, adjust by 0.5 per point
-            val1 = (abs(s1["price"]) / 100.0) - (s1["point"] / 2.0)
-            val2 = (abs(s2["price"]) / 100.0) - (s2["point"] / 2.0)
-            pick_ats = f"{team1} {s1['point']:+g}" if val1 <= val2 else f"{team2} {s2['point']:+g}"
-            edge_ats = round(abs(val2 - val1), 3)
-            ats_text = f"{team1}:{s1['price']}({s1['point']:+g}) | {team2}:{s2['price']}({s2['point']:+g})"
-        else:
-            pick_ats, edge_ats = ("", 0.0)
+        pick, edge, conf = "No Pick", 0.0, 50.0
+        if moneyline and len(moneyline["outcomes"])==2:
+            o1,o2 = moneyline["outcomes"]
+            p1 = implied_prob_from_odds(o1["price"])
+            p2 = implied_prob_from_odds(o2["price"])
+            pick = o1["name"] if p1>p2 else o2["name"]
+            edge = round(abs(p1-p2)*100,2)
+            conf = round(max(p1,p2)*100,2)
 
-        # Totals (lean toward side with better price)
-        ou_text = ""
-        t_over = prices["total"].get("Over"); t_under = prices["total"].get("Under")
-        if t_over and t_under and abs(t_over["point"] - t_under["point"]) < 1e-6:
-            pick_ou = "Over" if abs(t_over["price"]) < abs(t_under["price"]) else "Under"
-            ou_pt = t_over["point"]
-            ou_text = f"Over:{t_over['price']} / Under:{t_under['price']} @ {ou_pt}"
-        else:
-            pick_ou = ""
-
-        reason = "Market-based baseline (quick start). Improves as we add stats."
-        rows.append({
-            "Sport": sport.split("_")[-1].upper() if "_" in sport else sport.upper(),
-            "GameTime": commence,
-            "Team1": team1,
-            "Team2": team2,
-            "MoneylinePick": pick_ml,
-            "Confidence": conf_ml,
-            "Edge": edge_ml,
-            "ML": ml_text,
-            "ATS": ats_text,
-            "OU": ou_text,
+        reason = f"Auto pick based on ML odds difference ({edge:.2f} edge)"
+        return {
+            "Sport": sport,
+            "GameTime": ev["commence_time"],
+            "Team1": away_team,
+            "Team2": home_team,
+            "MoneylinePick": pick,
+            "Confidence": conf,
+            "Edge": edge,
+            "ML": f"{away_team}:{moneyline['outcomes'][0]['price']} | {home_team}:{moneyline['outcomes'][1]['price']}" if moneyline else "",
+            "ATS": spreads["key"] if spreads else "",
+            "OU": totals["key"] if totals else "",
             "Reason": reason,
-            "LockEmoji": "🔒" if edge_ml >= 0.5 and conf_ml >= 60 else "",
-            "UpsetEmoji": "⚠️" if edge_ml >= 0.3 and conf_ml < 55 else "",
-        })
+            "LockEmoji": "🔒" if edge>=0.5 and conf>=75 else "",
+            "UpsetEmoji": "💥" if edge>=0.3 and pick==away_team else "",
+        }
+    except Exception as e:
+        print(f"⚠️ Error analyzing event: {e}")
+        return None
 
-df = pd.DataFrame(rows, columns=[
-    "Sport","GameTime","Team1","Team2","MoneylinePick","Confidence","Edge","ML","ATS","OU","Reason","LockEmoji","UpsetEmoji"
-])
-df.to_csv(LATEST, index=False)
-dated = OUT_DIR / f"Predictions_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}_Explained.csv"
-df.to_csv(dated, index=False)
-print(f"✅ Wrote {LATEST} and {dated} with {len(df)} rows.")
+def main():
+    all_sports = [
+        "americanfootball_nfl",
+        "americanfootball_ncaaf",
+        "basketball_nba",
+        "icehockey_nhl",
+        "baseball_mlb",
+    ]
+    all_rows=[]
+    for s in all_sports:
+        events = fetch_events(s)
+        for ev in events:
+            row = analyze_event(ev)
+            if row: all_rows.append(row)
+
+    if not all_rows:
+        print("⚠️ No valid games found in next few days — writing empty file.")
+    df = pd.DataFrame(all_rows)
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    latest_path = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
+    dated_path  = os.path.join(OUTPUT_DIR, f"Predictions_{timestamp}_Explained.csv")
+
+    df.to_csv(latest_path, index=False)
+    df.to_csv(dated_path, index=False)
+
+    print(f"✅ Wrote {len(df)} rows to {dated_path}")
+    print(f"✅ Updated {latest_path}")
+
+if __name__ == "__main__":
+    main()
