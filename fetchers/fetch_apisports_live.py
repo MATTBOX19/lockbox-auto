@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-Robust fetcher for API-Sports that:
- - Handles american-football via /standings (avoids /teams/statistics problems)
- - Tries /teams/statistics for other sports, falls back to basic team info
- - Produces per-league CSVs and a combined Data/team_stats_latest.csv
-This is a full-file replacement — save/commit as-is.
-"""
 import os
 import time
 import requests
@@ -261,5 +253,3 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-PY
