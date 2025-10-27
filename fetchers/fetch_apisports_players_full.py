@@ -1,18 +1,34 @@
+#!/usr/bin/env python3
+"""
+fetch_apisports_players_full.py
+Fetches full player statistics for all LockBox sports using API-SPORTS.
+
+Leagues covered:
+  - NFL (american-football)
+  - NCAAF (american-football)
+  - NBA (basketball)
+  - MLB (baseball)
+  - NHL (hockey)
+
+Creates per-league and combined player stats CSVs under /Data.
+"""
+
 import os
+import time
 import requests
 import pandas as pd
-import time
 from datetime import datetime
+from pathlib import Path
 
 API_KEY = os.getenv("APISPORTS_KEY")
 if not API_KEY:
     raise EnvironmentError("Missing $APISPORTS_KEY environment variable.")
 
 HEADERS = {"x-apisports-key": API_KEY}
-DATA_DIR = "Data"
-os.makedirs(DATA_DIR, exist_ok=True)
 
-# league: (sport domain, league id)
+DATA_DIR = Path("Data")
+DATA_DIR.mkdir(exist_ok=True)
+
 LEAGUES = {
     "nfl": ("american-football", 1),
     "ncaaf": ("american-football", 2),
@@ -21,89 +37,107 @@ LEAGUES = {
     "nhl": ("hockey", 57),
 }
 
-def fetch_team_ids(sport: str, league_id: int, season=2025):
-    """Fetch all team IDs for a given league."""
-    url = f"https://v1.{sport}.api-sports.io/teams"
-    params = {"league": league_id, "season": season}
+def fetch_team_list(league_name: str) -> pd.DataFrame:
+    """Load team list from existing CSV (e.g., Data/nfl_team_stats.csv)."""
+    path = DATA_DIR / f"{league_name}_team_stats.csv"
+    if not path.exists():
+        print(f"⚠️ Missing team file: {path}")
+        return pd.DataFrame()
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=20)
-        data = r.json()
-        teams = [t["team"]["id"] for t in data.get("response", []) if t.get("team")]
-        return teams
+        df = pd.read_csv(path)
+        if "id" not in df.columns:
+            print(f"⚠️ Team file {path} missing 'id' column.")
+            return pd.DataFrame()
+        return df
     except Exception as e:
-        print(f"⚠️ Failed to fetch team IDs for {sport}: {e}")
-        return []
+        print(f"❌ Failed to read {path}: {e}")
+        return pd.DataFrame()
 
-def fetch_players_for_team(sport: str, team_id: int, season=2025):
-    """Fetch player roster for a given team."""
-    url = f"https://v1.{sport}.api-sports.io/players"
-    params = {"team": team_id, "season": season}
+def fetch_player_stats(sport: str, league_id: int, team_id: int, season: int = 2025) -> list:
+    """Fetch player stats for one team."""
+    url = f"https://v1.{sport}.api-sports.io/players/statistics"
+    params = {"league": league_id, "season": season, "team": team_id}
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=20)
+        r = requests.get(url, headers=HEADERS, params=params, timeout=25)
         data = r.json()
-        players = data.get("response", [])
+        if not data.get("response"):
+            return []
+        players = []
+        for p in data["response"]:
+            base = {
+                "player_id": p.get("player", {}).get("id"),
+                "name": p.get("player", {}).get("name"),
+                "age": p.get("player", {}).get("age"),
+                "position": p.get("player", {}).get("position"),
+                "team_id": team_id,
+                "sport": sport,
+                "league_id": league_id,
+            }
+            stats = p.get("statistics", [{}])[0]
+            # Generic fields common across sports
+            base.update({
+                "games_played": stats.get("games", {}).get("appearences"),
+                "points": stats.get("points", {}).get("for", {}).get("total")
+                if isinstance(stats.get("points", {}).get("for"), dict)
+                else stats.get("points"),
+                "yards": stats.get("yards") or None,
+                "touchdowns": stats.get("touchdowns", {}).get("total")
+                if isinstance(stats.get("touchdowns"), dict)
+                else stats.get("touchdowns"),
+                "assists": stats.get("assists") or None,
+                "rebounds": stats.get("rebounds") or None,
+                "shots": stats.get("shots") or None,
+                "minutes": stats.get("games", {}).get("minutes"),
+            })
+            players.append(base)
         return players
     except Exception as e:
-        print(f"❌ {sport.upper()} team {team_id} player fetch failed: {e}")
+        print(f"❌ {sport.upper()} fetch failed for team {team_id}: {e}")
         return []
 
-def normalize_players(players, league):
-    """Normalize player JSON into flat rows."""
-    rows = []
-    for p in players:
-        player = p.get("player", p)
-        rows.append({
-            "league": league.upper(),
-            "player_id": player.get("id"),
-            "name": player.get("name"),
-            "age": player.get("age"),
-            "height": player.get("height"),
-            "weight": player.get("weight"),
-            "college": player.get("college"),
-            "position": player.get("position"),
-            "number": player.get("number"),
-            "team_id": p.get("team", {}).get("id") if p.get("team") else None,
-            "team_name": p.get("team", {}).get("name") if p.get("team") else None,
-            "experience": player.get("experience"),
-            "group": player.get("group"),
-            "salary": player.get("salary"),
-            "image": player.get("image"),
-        })
-    return pd.DataFrame(rows)
+def process_league(league_name: str, sport: str, league_id: int):
+    """Fetch all player stats for a league."""
+    teams_df = fetch_team_list(league_name)
+    if teams_df.empty:
+        print(f"⚠️ No teams returned for {league_name.upper()}")
+        return pd.DataFrame()
+
+    all_players = []
+    for _, row in teams_df.iterrows():
+        team_id = row["id"]
+        team_name = row.get("team") or "Unknown"
+        print(f"📊 Fetching {sport.upper()} player stats for {team_name} (id={team_id})...")
+        players = fetch_player_stats(sport, league_id, team_id)
+        if players:
+            all_players.extend(players)
+            print(f"✅ Got {len(players)} players for {team_name}")
+        else:
+            print(f"⚠️ No stats for {team_name}")
+        time.sleep(1.5)  # rate limit
+
+    if not all_players:
+        print(f"⚠️ No player data fetched for {league_name.upper()}")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(all_players)
+    out_file = DATA_DIR / f"{league_name}_player_stats_2025.csv"
+    df.to_csv(out_file, index=False)
+    print(f"✅ Saved {len(df)} players to {out_file}")
+    return df
 
 def main():
-    all_sports = []
+    combined = []
     for league, (sport, league_id) in LEAGUES.items():
         print(f"\n🏈 Processing league: {league.upper()} ({sport}, id={league_id})")
-        team_ids = fetch_team_ids(sport, league_id)
-        if not team_ids:
-            print(f"⚠️ No teams returned for {league.upper()}")
-            continue
+        df = process_league(league, sport, league_id)
+        if not df.empty:
+            combined.append(df)
 
-        all_players = []
-        for tid in team_ids:
-            print(f"📊 Fetching {sport.upper()} players for team {tid}...")
-            players = fetch_players_for_team(sport, tid)
-            if not players:
-                continue
-            df = normalize_players(players, league)
-            all_players.append(df)
-            time.sleep(0.6)  # rate-limit
-
-        if not all_players:
-            print(f"⚠️ {league.upper()}: No players returned — skipping.")
-            continue
-
-        combined = pd.concat(all_players, ignore_index=True)
-        out_path = os.path.join(DATA_DIR, f"{league}_players_2025.csv")
-        combined.to_csv(out_path, index=False)
-        print(f"✅ {league.upper()}: wrote {len(combined)} rows to {out_path}")
-        all_sports.append(combined)
-
-    if all_sports:
-        merged = pd.concat(all_sports, ignore_index=True)
-        merged.to_csv(os.path.join(DATA_DIR, "players_all_latest.csv"), index=False)
-        print(f"\n🎉 Combined {len(merged)} total players across {len(all_sports)} leagues.")
+    if combined:
+        all_players = pd.concat(combined, ignore_index=True)
+        all_path = DATA_DIR / "player_stats_all_latest.csv"
+        all_players.to_csv(all_path, index=False)
+        print(f"\n🎉 Combined {len(all_players)} player stats saved to {all_path}")
     else:
         print("⚠️ No player data fetched from any league.")
 
