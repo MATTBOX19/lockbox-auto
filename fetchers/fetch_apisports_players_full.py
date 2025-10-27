@@ -39,7 +39,7 @@ LEAGUES = {
 
 def fetch_team_list(league_name: str) -> pd.DataFrame:
     """Load team list from existing CSV (e.g., Data/nfl_team_stats.csv)."""
-    path = DATA_DIR / f"{league_name}_team_stats.csv"
+    path = Path(__file__).resolve().parent.parent / "Data" / f"{league_name}_team_stats.csv"
     if not path.exists():
         print(f"⚠️ Missing team file: {path}")
         return pd.DataFrame()
