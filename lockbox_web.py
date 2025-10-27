@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-LockBox Pro Web — Learning Dashboard Edition
-Displays live picks + historical performance from history.csv
+LockBox Pro Web — Learning Dashboard + Manual Grading
+Displays live picks, historical performance, and lets you trigger grading manually.
 """
 from flask import Flask, render_template_string, jsonify, request
-import pandas as pd, os, glob, re
+import pandas as pd, os, glob, re, subprocess
 from collections import defaultdict
 from datetime import datetime
 
@@ -15,18 +15,21 @@ OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
 FALLBACK_FILE = os.path.join(OUTPUT_DIR, "Predictions_test.csv")
 LATEST_NAME = "Predictions_latest_Explained.csv"
 
-def log(msg): print(msg, flush=True)
+def log(msg): 
+    print(msg, flush=True)
 
 # === Performance Utility ===
 def compute_sport_performance():
     """Read Output/history.csv and summarize win/loss % by sport."""
     path = os.path.join(OUTPUT_DIR, "history.csv")
-    if not os.path.exists(path): return []
+    if not os.path.exists(path): 
+        return []
     try:
         df = pd.read_csv(path)
     except Exception:
         return []
-    if df.empty: return []
+    if df.empty: 
+        return []
 
     recent = df.tail(250)
     perf = defaultdict(lambda: {"W":0,"L":0})
@@ -40,7 +43,8 @@ def compute_sport_performance():
     data=[]
     for s,v in perf.items():
         total=v["W"]+v["L"]
-        if total==0: continue
+        if total==0: 
+            continue
         pct=round(100*v["W"]/total,1)
         data.append({"sport":s,"wins":v["W"],"losses":v["L"],"pct":pct})
     data.sort(key=lambda x:-x["pct"])
@@ -48,7 +52,8 @@ def compute_sport_performance():
 
 def perf_html():
     data=compute_sport_performance()
-    if not data: return "No performance data yet."
+    if not data: 
+        return "No performance data yet."
     html=["<div style='display:flex;flex-wrap:wrap;justify-content:center;gap:10px;'>"]
     emoji={"NFL":"🏈","CFB":"🎓","NBA":"🏀","MLB":"⚾","NHL":"🏒"}
     for row in data:
@@ -66,12 +71,14 @@ def perf_html():
 # === Prediction Utils ===
 def find_latest_file():
     latest=os.path.join(OUTPUT_DIR,LATEST_NAME)
-    if os.path.exists(latest): return latest
+    if os.path.exists(latest): 
+        return latest
     files=glob.glob(os.path.join(OUTPUT_DIR,"Predictions_*_Explained.csv"))
     if files:
         files.sort(key=os.path.getmtime,reverse=True)
         return files[0]
-    if os.path.exists(FALLBACK_FILE): return FALLBACK_FILE
+    if os.path.exists(FALLBACK_FILE): 
+        return FALLBACK_FILE
     return None
 
 def parse_teams_from_ml(val):
@@ -81,13 +88,16 @@ def parse_teams_from_ml(val):
             t1=parts[0].split(":")[0].strip()
             t2=parts[1].split(":")[0].strip()
             return t1,t2
-    except: pass
+    except: 
+        pass
     return None,None
 
 def load_predictions():
     path=find_latest_file()
-    if not path: return pd.DataFrame(), "NO_FILE"
-    try: df=pd.read_csv(path)
+    if not path: 
+        return pd.DataFrame(), "NO_FILE"
+    try: 
+        df=pd.read_csv(path)
     except Exception as e:
         log(f"⚠️ could not read {path}: {e}")
         return pd.DataFrame(), "READ_ERROR"
@@ -116,8 +126,12 @@ def load_predictions():
     df["UpsetEmoji"]=df.get("UpsetEmoji","")
     df["Sport_raw"]=df.get("Sport","").astype(str)
     df["Sport"]=df["Sport_raw"].replace({
-        "americanfootball_nfl":"NFL","americanfootball_ncaaf":"CFB",
-        "basketball_nba":"NBA","baseball_mlb":"MLB","icehockey_nhl":"NHL"})
+        "americanfootball_nfl":"NFL",
+        "americanfootball_ncaaf":"CFB",
+        "basketball_nba":"NBA",
+        "baseball_mlb":"MLB",
+        "icehockey_nhl":"NHL"
+    })
     return df,os.path.basename(path)
 
 # === Template ===
@@ -132,6 +146,7 @@ body{background:#0d1117;color:#c9d1d9;font-family:system-ui,Segoe UI,Roboto,Aria
 h1{color:#58a6ff;text-align:center;padding:20px 0;margin:0;}
 .updated{text-align:center;font-size:.9rem;color:#8b949e;margin-top:-10px}
 .filters{display:flex;justify-content:center;margin:15px;gap:10px;flex-wrap:wrap}
+button{background:#238636;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;}
 select{background:#161b22;color:#c9d1d9;border:1px solid #30363d;padding:6px 10px;border-radius:6px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));max-width:1400px;margin:0 auto 40px;gap:14px;padding:0 20px}
 .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
@@ -162,6 +177,7 @@ select{background:#161b22;color:#c9d1d9;border:1px solid #30363d;padding:6px 10p
     <option value="All" {% if top5=='All' %}selected{% endif %}>All</option>
     <option value="1" {% if top5=='1' %}selected{% endif %}>Top 5</option>
   </select>
+  <button onclick="window.location='/grade_now'">⚡ Grade Now</button>
 </div>
 
 <div class="grid">
@@ -222,6 +238,19 @@ def index():
         footer_text=footer,
         perf_html=perf_html(),
     )
+
+@app.route("/grade_now")
+def grade_now():
+    """Manually trigger grading logic via grade_now.py"""
+    try:
+        result = subprocess.run(
+            ["python", "grade_now.py"],
+            capture_output=True, text=True, timeout=180
+        )
+        msg = result.stdout + "\n" + result.stderr
+    except Exception as e:
+        msg = f"❌ Error: {e}"
+    return f"<pre style='color:#79c0ff;white-space:pre-wrap;'>{msg}</pre>"
 
 @app.route("/api/status")
 def api_status():
