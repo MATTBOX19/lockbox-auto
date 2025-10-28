@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
-LockBox Pro – Learning Predictor
-Auto-grades past picks and adjusts edge/confidence by sport performance.
+LockBox Pro – Learning Predictor (API-Sports Edition)
+Grades past picks and adjusts edge/confidence by sport performance.
 """
 
 import os, pandas as pd, requests, datetime as dt, numpy as np, json
 
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/opt/render/project/src/Output")
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
+API_SPORTS_KEY = os.getenv("API_SPORTS_KEY", "")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 HISTORY_FILE = os.path.join(OUTPUT_DIR, "history.csv")
 PRED_FILE = os.path.join(OUTPUT_DIR, "Predictions_latest_Explained.csv")
 
-# --- helper ---
+# -------------------------------
+# Helper
+# -------------------------------
 def log(msg):
     print(f"{dt.datetime.utcnow().isoformat()}Z  {msg}", flush=True)
 
@@ -28,15 +30,37 @@ def load_history():
             log(f"⚠️ Error reading history: {e}")
     return pd.DataFrame(columns=["Date","Sport","Game","BetType","Pick","Result","Edge","Confidence"])
 
+# -------------------------------
+# API-Sports utilities
+# -------------------------------
+SPORT_MAP = {
+    "americanfootball_nfl": ("american-football", 1, "2025"),
+    "americanfootball_ncaaf": ("american-football", 2, "2025"),
+    "basketball_nba": ("basketball", 12, "2025-2026"),
+    "icehockey_nhl": ("hockey", 57, "2025"),
+    "baseball_mlb": ("baseball", 1, "2025"),
+}
+
 def fetch_recent_results(sport_key):
-    """Pull completed games from The Odds API"""
-    url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/scores/?daysFrom=3&apiKey={ODDS_API_KEY}"
+    """Pull completed games from API-Sports"""
+    if sport_key not in SPORT_MAP:
+        return []
+    api_group, league_id, season = SPORT_MAP[sport_key]
+    url = f"https://v1.{api_group}.api-sports.io/games"
+    params = {
+        "league": league_id,
+        "season": season,
+        "to": dt.datetime.utcnow().strftime("%Y-%m-%d"),
+        "from": (dt.datetime.utcnow() - dt.timedelta(days=3)).strftime("%Y-%m-%d"),
+    }
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, headers={"x-apisports-key": API_SPORTS_KEY}, params=params, timeout=15)
         if r.status_code != 200:
             log(f"⚠️ Bad response for {sport_key}: {r.status_code}")
             return []
-        return r.json()
+        data = r.json().get("response", [])
+        completed = [g for g in data if g.get("status", {}).get("short") in ("FT","AOT","ENDED","FT_OT","FINISHED")]
+        return completed
     except Exception as e:
         log(f"fetch_recent_results error {sport_key}: {e}")
         return []
@@ -44,19 +68,26 @@ def fetch_recent_results(sport_key):
 def grade_pick(row, results):
     """Mark pick as WIN/LOSS if result available"""
     for g in results:
-        h, a = (g.get("home_team",""), g.get("away_team",""))
-        if not g.get("completed"):
+        home = g.get("teams", {}).get("home", {}).get("name", "")
+        away = g.get("teams", {}).get("away", {}).get("name", "")
+        scores = g.get("scores", {})
+        if not home or not away:
             continue
-        if row["Team1"] in (h,a) and row["Team2"] in (h,a):
-            scores = g.get("scores", [])
-            if len(scores)==2:
-                home, away = scores[0]["score"], scores[1]["score"]
-                win = h if home>away else a
-                return "WIN" if row["MoneylinePick"].startswith(win) else "LOSS"
+        if row.get("Team1") in (home, away) and row.get("Team2") in (home, away):
+            try:
+                home_score = scores.get("home", 0)
+                away_score = scores.get("away", 0)
+                winner = home if home_score > away_score else away
+                pick_team = str(row.get("MoneylinePick","")).split()[0]
+                return "WIN" if winner in pick_team else "LOSS"
+            except Exception:
+                continue
     return np.nan
 
+# -------------------------------
+# Adaptive weighting
+# -------------------------------
 def weighted_adjustment(hist):
-    """Adjust learning weights safely — skip if no results yet."""
     if hist is None or hist.empty:
         print("⚠️ No history data available — skipping weighted adjustment.")
         return {}
@@ -65,7 +96,7 @@ def weighted_adjustment(hist):
         print("⚠️ No 'Result' column found — first run detected, skipping adjustment.")
         return {}
 
-    recent = hist[hist["Result"].isin(["WIN", "LOSS"])].tail(200)
+    recent = hist[hist["Result"].isin(["WIN","LOSS"])].tail(200)
     if recent.empty:
         print("⚠️ No graded results yet — skipping adjustment.")
         return {}
@@ -79,11 +110,13 @@ def weighted_adjustment(hist):
         print(f"⚠️ Weighted adjustment skipped due to error: {e}")
         return {}
 
-# --- main ---
+# -------------------------------
+# Main
+# -------------------------------
 def main():
     log("🧠 LockBox Learning cycle start")
 
-    # Load latest predictions
+    # Load predictions
     if not os.path.exists(PRED_FILE):
         log("❌ No predictions file found.")
         return
@@ -93,17 +126,12 @@ def main():
         return
 
     hist = load_history()
-    all_results = {
-        "americanfootball_nfl": fetch_recent_results("americanfootball_nfl"),
-        "americanfootball_ncaaf": fetch_recent_results("americanfootball_ncaaf"),
-        "basketball_nba": fetch_recent_results("basketball_nba"),
-        "icehockey_nhl": fetch_recent_results("icehockey_nhl"),
-        "baseball_mlb": fetch_recent_results("baseball_mlb"),
-    }
+    all_results = {s: fetch_recent_results(s) for s in SPORT_MAP.keys()}
 
     graded_rows = []
     for _, r in df.iterrows():
-        res = grade_pick(r, all_results.get(r.get("Sport_raw",""), []))
+        sport_key = r.get("Sport_raw", "") or r.get("Sport", "")
+        res = grade_pick(r, all_results.get(sport_key, []))
         if isinstance(res, str):
             graded_rows.append({
                 "Date": dt.datetime.utcnow().date(),
@@ -124,11 +152,9 @@ def main():
     else:
         log("ℹ️ No new graded results (first cycle likely)")
 
-    # Adjust scaling weights
     adj = weighted_adjustment(hist)
     log(f"Performance weights: {adj}")
 
-    # Apply slight learning bias if available
     if adj:
         for i, r in df.iterrows():
             sport = r.get("Sport","")
@@ -137,7 +163,6 @@ def main():
                 df.at[i,"Edge"] = r["Edge"] * (0.9 + 0.2*w)
                 df.at[i,"Confidence"] = min(100, r["Confidence"] * (0.9 + 0.2*w))
 
-    # Save adjusted predictions
     date_str = dt.datetime.utcnow().strftime("%Y-%m-%d")
     out_path = os.path.join(OUTPUT_DIR, f"Predictions_{date_str}_Explained.csv")
     df.to_csv(out_path, index=False)
